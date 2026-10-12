@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "rulio": {
+      "type": "http",
+      "url": "https://api.rulio.net/mcp"
+    }
+  }
+}

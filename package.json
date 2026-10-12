@@ -1,0 +1,25 @@
+{
+  "name": "rulio-agent",
+  "version": "0.1.0",
+  "description": "Lässt einen KI-Agenten (Claude Code) nach Zeitplan mit rulio arbeiten",
+  "type": "module",
+  "bin": {
+    "rulio-agent": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "tsc -p tsconfig.json && node --test dist/*.test.js",
+    "start": "node dist/cli.js run",
+    "prepare": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0"
+  }
+}
