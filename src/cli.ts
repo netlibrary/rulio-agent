@@ -70,7 +70,7 @@ async function main(): Promise<void> {
     } catch (err) {
       log(`Fehler: ${(err as Error).message} — neuer Versuch gleich`);
     }
-    await new Promise((r) => setTimeout(r, Math.max(15, wait) * 1000));
+    await new Promise((r) => setTimeout(r, Math.max(5, wait) * 1000));
   }
 }
 
