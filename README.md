@@ -63,6 +63,12 @@ docker run -d --restart unless-stopped \
   rulio-agent
 ```
 
+Für den Dauerbetrieb bei rulio baut `.github/workflows/image.yml` das Image
+nach `ghcr.io/netlibrary/rulio-agent`; ausgerollt wird es aus
+netlibrary/finance-deployment (`deploy-agent.yml`, eingesperrt: nur lesbares
+Dateisystem, keine Rechte, gedeckelter Speicher). Fragt der Agent länger als
+10 Minuten nicht nach, meldet rulio ihn als offline.
+
 ## Einstellungen (Umgebungsvariablen)
 
 | Variable | Bedeutung | Standard |
