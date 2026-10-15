@@ -21,6 +21,8 @@ export interface RunResult {
   turns?: number | null;
   costUsd?: number | null;
   error?: string | null;
+  /** Hauptmodell des Laufs (Modell-ID aus Claude Code); null = unbekannt */
+  model?: string | null;
 }
 
 async function call<T>(cfg: Config, path: string, body: unknown): Promise<T> {

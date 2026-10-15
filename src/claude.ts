@@ -42,6 +42,25 @@ export function claudeArgs(configPath: string, order: Pick<RunOrder, "maxTurns">
 }
 
 /** Ergebnis von `--output-format json` lesen — tolerant, Felder ändern sich gelegentlich */
+/**
+ * Das Hauptmodell eines Laufs: Claude Code nennt in `modelUsage` je Modell-ID
+ * die Tokens (Unteraufgaben laufen oft auf einem kleineren Modell) — es zählt
+ * das mit den meisten Ausgabe-Tokens. null, wenn die Angabe fehlt.
+ */
+export function mainModel(usage: unknown): string | null {
+  if (!usage || typeof usage !== "object") return null;
+  let best: string | null = null;
+  let most = -1;
+  for (const [id, u] of Object.entries(usage as Record<string, { outputTokens?: unknown }>)) {
+    const out = typeof u?.outputTokens === "number" ? u.outputTokens : 0;
+    if (out > most) {
+      most = out;
+      best = id;
+    }
+  }
+  return best;
+}
+
 export function parseClaudeOutput(stdout: string, exitCode: number | null): RunResult {
   const text = stdout.trim();
   const start = text.lastIndexOf("\n{");
@@ -53,6 +72,7 @@ export function parseClaudeOutput(stdout: string, exitCode: number | null): RunR
       subtype?: string;
       num_turns?: number;
       total_cost_usd?: number;
+      modelUsage?: unknown;
     };
     const failed = out.is_error === true || (out.subtype !== undefined && out.subtype !== "success") || (exitCode ?? 0) !== 0;
     return {
@@ -60,6 +80,7 @@ export function parseClaudeOutput(stdout: string, exitCode: number | null): RunR
       summary: out.result ?? null,
       turns: typeof out.num_turns === "number" ? out.num_turns : null,
       costUsd: typeof out.total_cost_usd === "number" ? out.total_cost_usd : null,
+      model: mainModel(out.modelUsage),
       // Bei is_error steht der Grund im Ergebnistext (z. B. „Not logged in“), nicht im subtype
       error: failed ? (out.is_error && out.result ? out.result : (out.subtype ?? `Exit ${exitCode}`)) : null,
     };

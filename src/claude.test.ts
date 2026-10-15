@@ -21,7 +21,26 @@ test("MCP-Konfiguration zeigt auf /mcp mit dem Schlüssel", () => {
 
 test("Ausgabe lesen: Erfolg mit Kosten und Schritten", () => {
   const r = parseClaudeOutput(JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "Nichts getan.", num_turns: 7, total_cost_usd: 0.12 }), 0);
-  assert.deepEqual(r, { status: "ok", summary: "Nichts getan.", turns: 7, costUsd: 0.12, error: null });
+  assert.deepEqual(r, { status: "ok", summary: "Nichts getan.", turns: 7, costUsd: 0.12, model: null, error: null });
+});
+
+test("Ausgabe lesen: Hauptmodell = das mit den meisten Ausgabe-Tokens (rulio-tickets#91)", () => {
+  const r = parseClaudeOutput(
+    JSON.stringify({
+      subtype: "success",
+      result: "ok",
+      modelUsage: {
+        "claude-haiku-5-5": { inputTokens: 9000, outputTokens: 300 },
+        "claude-opus-5-5": { inputTokens: 2000, outputTokens: 1800 },
+      },
+    }),
+    0,
+  );
+  assert.equal(r.model, "claude-opus-5-5");
+});
+
+test("Ausgabe lesen: ohne modelUsage ist das Modell unbekannt", () => {
+  assert.equal(parseClaudeOutput(JSON.stringify({ subtype: "success", result: "ok" }), 0).model, null);
 });
 
 test("Ausgabe lesen: Schrittdeckel erreicht ist ein Fehler", () => {
