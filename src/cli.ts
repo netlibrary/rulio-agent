@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
 import { loadConfig, type Config } from "./config.js";
-import { finish, poll } from "./rulio.js";
+import { finish, nextPollDelay, poll } from "./rulio.js";
 import { runClaude } from "./claude.js";
 
 /**
@@ -15,17 +15,20 @@ import { runClaude } from "./claude.js";
  */
 const log = (msg: string) => console.log(`${new Date().toISOString()} ${msg}`);
 
+/** Ein Abruf, ggf. ein Lauf; zurück: Sekunden bis zum nächsten Abruf */
 async function cycle(cfg: Config): Promise<number> {
+  const asked = Date.now();
   const reply = await poll(cfg);
   if (!reply.enabled) log("Notaus aktiv — kein Lauf");
-  if (!reply.run) return reply.pollSeconds;
+  const delay = nextPollDelay(reply, Date.now() - asked);
+  if (!reply.run) return delay;
   const order = reply.run;
   log(`Lauf ${order.id} (${order.trigger}) — höchstens ${order.maxMinutes} min`);
   const started = Date.now();
   const result = await runClaude(cfg, order);
   log(`Lauf ${order.id}: ${result.status} nach ${Math.round((Date.now() - started) / 1000)} s${result.error ? ` — ${result.error}` : ""}`);
   await finish(cfg, order.id, result).catch((err: Error) => log(`Ergebnis nicht gemeldet: ${err.message}`));
-  return reply.pollSeconds;
+  return delay;
 }
 
 function check(cfg: Config): Promise<void> {
@@ -70,7 +73,7 @@ async function main(): Promise<void> {
     } catch (err) {
       log(`Fehler: ${(err as Error).message} — neuer Versuch gleich`);
     }
-    await new Promise((r) => setTimeout(r, Math.max(5, wait) * 1000));
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait * 1000));
   }
 }
 

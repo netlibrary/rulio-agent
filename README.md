@@ -85,7 +85,10 @@ dein Abo genutzt wird (sonst liefe es auf API-Kosten) — außer
 
 ## So läuft ein Lauf ab
 
-- rulio-agent fragt jede Minute `POST /api/agent/runner/poll`.
+- rulio-agent fragt `POST /api/agent/runner/poll` im Long-Poll: Ist nichts
+  fällig, hält rulio die Anfrage bis zu 25 s offen und antwortet sofort, wenn
+  eine Chat-Nachricht kommt — ein Chat-Lauf startet so in Sekunden. Danach
+  fragt es gleich wieder. Bei Fehlern wartet es eine Minute.
 - Ist ein Lauf fällig, startet es `claude -p` mit einer temporären
   MCP-Konfiguration, die **nur** rulio enthält; eingebaute Werkzeuge (Bash,
   Dateien lesen …) sind aus, nur `mcp__rulio__*` ist erlaubt. Zeitdeckel und
