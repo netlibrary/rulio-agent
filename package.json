@@ -2,6 +2,13 @@
   "name": "rulio-agent",
   "version": "0.1.0",
   "description": "Lässt einen KI-Agenten (Claude Code) nach Zeitplan mit rulio arbeiten",
+  "license": "MIT",
+  "author": "Paul Hornig",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/netlibrary/rulio-agent.git"
+  },
+  "homepage": "https://rulio.net",
   "type": "module",
   "bin": {
     "rulio-agent": "dist/cli.js"

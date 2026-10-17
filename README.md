@@ -1,61 +1,84 @@
 # rulio-agent
 
-Lässt einen KI-Agenten (Claude Code) **nach Zeitplan** mit
-[rulio](https://rulio.net) arbeiten: Er liest dein Konto und die Marktlisten,
-prüft Regeln und legt eigene Regeln **im Paper-Konto** an — in den Grenzen, die
-du in rulio festlegst (Einstellungen → KI-Agent → Auftrag).
+Lässt deinen eigenen KI-Agenten (Claude Code) **nach Zeitplan** mit
+[rulio](https://rulio.net) arbeiten. Er liest dein Konto und die Marktlisten,
+vergleicht Ideen, legt eigene Regeln **im Paper-Konto** an und schreibt
+Berichte. Das alles geschieht in den Grenzen, die du in rulio festlegst.
 
-**WANN** ein Lauf fällig ist, entscheidet rulio (Zeitplan in der App: vor
-Öffnung, alle N Minuten während der Handelszeit, nach Schluss, „Jetzt laufen
-lassen"). Dieses Programm fragt nur regelmäßig nach und führt aus.
+*English in short: rulio-agent runs Claude Code on a schedule against your
+rulio account. rulio decides when a run is due and enforces all limits; this
+program only asks and executes. Your Claude login and your rulio key never
+leave your machine or server. MIT licensed.*
 
-Was der Agent darf und was nicht, erzwingt rulio selbst — nicht dieses Programm:
-nur eigene Regeln, nur Paper-Konto, Budget, Anzahl, Notaus.
+**Wann** ein Lauf fällig ist, entscheidet rulio. Das stellst du in der App ein:
+vor Öffnung, alle N Minuten während der Handelszeit, nach Schluss, bei
+Ereignissen oder per Chat bzw. Auftrag. Dieses Programm fragt nur regelmäßig
+nach und führt aus.
+
+## Was der Agent darf
+
+- **Nur rulio:** Der Agent arbeitet ausschließlich mit den rulio-Werkzeugen
+  (MCP). Eingebaute Werkzeuge von Claude Code wie Bash, Dateien lesen und
+  schreiben oder Web sind aus, andere MCP-Server ebenso.
+- **Unteragenten:** Bei Bericht-Läufen darf er zusätzlich Unteragenten starten.
+  Sie haben dieselben Grenzen.
+- **rulio erzwingt** serverseitig, unabhängig von diesem Programm:
+  - eigene Regeln nur im Paper-Konto, nie mit echtem Geld;
+  - Budget, Anzahl der Regeln und neue Regeln je Tag;
+  - Notaus;
+  - je Schlüssel genau ein Konto.
+
+  Für dein echtes Konto kann der Agent nur **vorschlagen**; übernehmen tust du.
 
 ## Voraussetzungen
 
-1. In rulio: Einstellungen → **KI-Agent** → Verbindung → Schlüssel erzeugen
-   (`rulio_…`). Unter **Auftrag** Zeitplan einschalten.
-2. [Claude Code](https://code.claude.com) mit deinem eigenen Abo (Pro/Max) oder
-   API-Schlüssel. rulio-agent startet nur das unveränderte `claude`-Programm und
-   liest deinen Login nie.
+1. **Konto bei rulio:** In der App unter **KI-Agent › Verbindung** einen
+   Schlüssel erzeugen (`rulio_…`). Er gilt für genau ein Konto und lässt sich
+   dort jederzeit widerrufen. Den Zeitplan stellst du im KI-Agent-Bereich ein.
+2. **[Claude Code](https://code.claude.com)** mit deinem eigenen Abo (Pro/Max)
+   oder API-Schlüssel. rulio-agent startet nur das unveränderte
+   `claude`-Programm. Deinen Login liest es nie.
+3. **Node.js 20** oder neuer (für Weg 2).
 
 ## Weg 1: Cloud-Routine (ohne eigenen Rechner)
 
-Claude Code kann geplante Läufe („Routines") in der Cloud ausführen, frühestens
+Claude Code kann geplante Läufe („Routines“) in der Cloud ausführen, frühestens
 stündlich, auf deinem Abo.
 
-1. Dieses Repo (bzw. einen Fork) in https://claude.ai/code/routines als
-   Repository wählen — die `.mcp.json` im Wurzelverzeichnis bindet rulio ein.
-2. In der Umgebung unter **Network secrets** einen Eintrag anlegen:
-   erlaubte Website `api.rulio.net`, Header `Authorization`, Präfix `Bearer`,
-   Wert = dein `rulio_…`-Schlüssel. (Nicht als normale Umgebungsvariable — die
-   sieht jeder mit Zugriff auf die Umgebung.)
-3. Prompt: Inhalt von [`routine/PROMPT.md`](routine/PROMPT.md).
-4. Auslöser: stündlich an Werktagen (Voreinstellung „hourly" bzw. „weekdays"
-   plus `/schedule update` mit Cron). Die nächste Ausführungszeit in der
-   Oberfläche prüfen — wie Cron-Zeiten in deine Zeitzone fallen, ist dort zu
-   sehen. rulio entscheidet bei jedem Lauf, ob wirklich etwas zu tun ist —
-   sonst ist der Lauf nach Sekunden fertig.
-5. Hinweis: Ob das Network Secret auch für den MCP-Verkehr gilt, ist in der
-   Anthropic-Dokumentation nicht ausdrücklich beschrieben — beim ersten Lauf
-   im rulio-Protokoll prüfen, ob er ankommt.
+1. **Repository:** Dieses Repo forken und den Fork in
+   https://claude.ai/code/routines als Repository wählen. Die `.mcp.json` im
+   Wurzelverzeichnis bindet rulio ein; sie enthält keinen Schlüssel.
+2. **Schlüssel:** In der Umgebung unter **Network secrets** einen Eintrag
+   anlegen: erlaubte Website `api.rulio.net`, Header `Authorization`, Präfix
+   `Bearer`, Wert = dein `rulio_…`-Schlüssel. Nicht als normale
+   Umgebungsvariable anlegen, die sieht jeder mit Zugriff auf die Umgebung.
+3. **Prompt:** der Inhalt von [`routine/PROMPT.md`](routine/PROMPT.md).
+4. **Auslöser:** stündlich an Werktagen. rulio entscheidet bei jedem Lauf, ob
+   wirklich etwas zu tun ist; sonst ist der Lauf nach Sekunden fertig.
+5. **Prüfen:** Beim ersten Lauf im rulio-Protokoll nachsehen, ob er ankommt.
 
-## Weg 2: Auf deinem PC
+## Weg 2: Auf deinem Rechner
 
 ```bash
-claude auth login          # einmal, mit deinem Claude-Abo
-npm install -g github:netlibrary/rulio-agent   # privates Repo: gh auth login vorher
-RULIO_TOKEN=rulio_… rulio-agent check
-RULIO_TOKEN=rulio_… rulio-agent run
+claude auth login                                  # einmal, mit deinem Claude-Abo
+npm install -g github:netlibrary/rulio-agent
+RULIO_TOKEN=rulio_… rulio-agent check              # Verbindung prüfen
+RULIO_TOKEN=rulio_… rulio-agent run                # dauerhaft laufen lassen
 ```
 
-Windows (PowerShell): `$env:RULIO_TOKEN="rulio_…"; rulio-agent run`
+Unter Windows (PowerShell): `$env:RULIO_TOKEN="rulio_…"; rulio-agent run`
 
-## Weg 3: Auf einer VM (Docker)
+`rulio-agent once` führt höchstens einen fälligen Lauf aus und endet. Das
+eignet sich für einen eigenen Zeitplan, etwa per Cron oder Aufgabenplanung.
+
+## Weg 3: Auf einem Server (Docker)
+
+Das Image baust du selbst aus diesem Repo. Dabei lädt der Build Claude Code
+aus npm. Ein fertiges Image mit Claude Code gibt es nicht zum Herunterladen:
+Claude Code gehört Anthropic und wird nicht von uns weiterverteilt.
 
 ```bash
-claude setup-token         # auf deinem Rechner: erzeugt ein Token für Skripte
+claude setup-token        # auf deinem Rechner: erzeugt ein Token für Skripte
 docker build -t rulio-agent https://github.com/netlibrary/rulio-agent.git
 docker run -d --restart unless-stopped \
   -e RULIO_TOKEN=rulio_… \
@@ -63,11 +86,7 @@ docker run -d --restart unless-stopped \
   rulio-agent
 ```
 
-Für den Dauerbetrieb bei rulio baut `.github/workflows/image.yml` das Image
-nach `ghcr.io/netlibrary/rulio-agent`; ausgerollt wird es aus
-netlibrary/finance-deployment (`deploy-agent.yml`, eingesperrt: nur lesbares
-Dateisystem, keine Rechte, gedeckelter Speicher). Fragt der Agent länger als
-10 Minuten nicht nach, meldet rulio ihn als offline.
+Fragt der Agent länger als 10 Minuten nicht nach, meldet rulio ihn als offline.
 
 ## Einstellungen (Umgebungsvariablen)
 
@@ -76,22 +95,37 @@ Dateisystem, keine Rechte, gedeckelter Speicher). Fragt der Agent länger als
 | `RULIO_TOKEN` | Schlüssel aus rulio (Pflicht) | — |
 | `RULIO_URL` | rulio-Adresse | `https://api.rulio.net` |
 | `CLAUDE_BIN` | Pfad zu `claude` | `claude` |
-| `RULIO_CLIENT_NAME` | Name in rulio („Agent online") | `rulio-agent@<Rechner>` |
+| `RULIO_CLIENT_NAME` | Name in rulio („Agent online“) | `rulio-agent@<Rechner>` |
 | `RULIO_AGENT_USE_API_KEY` | `1` = `ANTHROPIC_API_KEY` nutzen statt Abo | aus |
 
-Ist `ANTHROPIC_API_KEY` gesetzt, entfernt rulio-agent ihn für die Läufe, damit
-dein Abo genutzt wird (sonst liefe es auf API-Kosten) — außer
-`RULIO_AGENT_USE_API_KEY=1`.
+Ist `ANTHROPIC_API_KEY` gesetzt, entfernt rulio-agent ihn für die Läufe. So
+läuft der Agent auf deinem Abo und nicht auf API-Kosten. Das gilt nicht, wenn
+`RULIO_AGENT_USE_API_KEY=1` gesetzt ist.
 
 ## So läuft ein Lauf ab
 
-- rulio-agent fragt `POST /api/agent/runner/poll` im Long-Poll: Ist nichts
-  fällig, hält rulio die Anfrage bis zu 25 s offen und antwortet sofort, wenn
-  eine Chat-Nachricht kommt — ein Chat-Lauf startet so in Sekunden. Danach
-  fragt es gleich wieder. Bei Fehlern wartet es eine Minute.
-- Ist ein Lauf fällig, startet es `claude -p` mit einer temporären
-  MCP-Konfiguration, die **nur** rulio enthält; eingebaute Werkzeuge (Bash,
-  Dateien lesen …) sind aus, nur `mcp__rulio__*` ist erlaubt. Zeitdeckel und
+- **Abfragen:** rulio-agent fragt `POST /api/agent/runner/poll` im Long-Poll.
+  Ist nichts fällig, hält rulio die Anfrage bis zu 25 s offen und antwortet
+  sofort, wenn eine Chat-Nachricht kommt. Ein Chat-Lauf startet so in Sekunden.
+  Bei Fehlern wartet es eine Minute.
+- **Lauf:** Ist ein Lauf fällig, startet rulio-agent `claude -p` mit einer
+  temporären MCP-Konfiguration, die **nur** rulio enthält. Erlaubt ist nur
+  `mcp__rulio__*` (bei Bericht-Läufen zusätzlich Unteragenten). Zeitdeckel und
   Schrittdeckel kommen aus rulio.
-- Am Ende meldet es Status, Zusammenfassung, Schritte und Kosten zurück. In
-  rulio steht alles unter KI-Agent → Protokoll.
+- **Ergebnis:** Am Ende meldet es Status, Zusammenfassung, Schritte, Modell und
+  Kosten zurück. In rulio steht alles im KI-Agent-Bereich unter **Protokoll**.
+
+## Entwickeln
+
+```bash
+npm install
+npm test        # TypeScript bauen und Tests ausführen
+```
+
+Für rulio selbst baut `.github/workflows/image.yml` bei einem Push nach `main`
+ein Image für den eigenen Betrieb. Es liegt privat auf ghcr.io.
+
+## Lizenz
+
+[MIT](LICENSE). Claude Code ist nicht Teil dieses Repos und steht unter den
+Bedingungen von Anthropic.
