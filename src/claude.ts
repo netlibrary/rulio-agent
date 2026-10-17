@@ -12,6 +12,9 @@ import type { RunOrder, RunResult } from "./rulio.js";
  *    MCP-Server und die eingebauten Werkzeuge wie Bash/Read sind aus)
  *  - nur rulio-Werkzeuge erlaubt, alles andere wird ohne Nachfrage abgelehnt
  *  - Zeitdeckel (Abbruch) und Schrittdeckel
+ * Bericht-Läufe (rulio-tickets#255) dürfen zusätzlich Unteragenten starten
+ * (Werkzeug „Agent“): parallele Schritte, je Aktie einer. Unteragenten erben
+ * nur, was der Lauf hat — die rulio-Werkzeuge; Bash, Dateien und Web bleiben aus.
  */
 export function mcpConfig(cfg: Config): string {
   return JSON.stringify({
@@ -21,16 +24,20 @@ export function mcpConfig(cfg: Config): string {
   });
 }
 
-export function claudeArgs(configPath: string, order: Pick<RunOrder, "maxTurns">): string[] {
+/** Eingebautes Werkzeug für Unteragenten in Claude Code (früher „Task“, heute ein Alias) */
+export const SUBAGENT_TOOL = "Agent";
+
+export function claudeArgs(configPath: string, order: Pick<RunOrder, "maxTurns" | "allowSubagents">): string[] {
+  const sub = order.allowSubagents === true;
   return [
     "-p",
     "--mcp-config",
     configPath,
     "--strict-mcp-config",
     "--tools",
-    "",
+    sub ? SUBAGENT_TOOL : "",
     "--allowedTools",
-    "mcp__rulio__*",
+    sub ? `mcp__rulio__*,${SUBAGENT_TOOL}` : "mcp__rulio__*",
     "--permission-mode",
     "dontAsk",
     "--max-turns",

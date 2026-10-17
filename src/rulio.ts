@@ -7,6 +7,10 @@ export interface RunOrder {
   prompt: string;
   maxMinutes: number;
   maxTurns: number;
+  /** Bericht-Lauf (rulio-tickets#255): längere Deckel kommen schon in maxMinutes/maxTurns */
+  kind?: "report";
+  /** Unteragenten erlaubt — parallele Schritte eines Berichts; ältere Server lassen es weg */
+  allowSubagents?: boolean;
 }
 
 export interface PollReply {

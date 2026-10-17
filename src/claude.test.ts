@@ -13,6 +13,17 @@ test("nur der rulio-Server, eingebaute Werkzeuge aus, nur rulio-Werkzeuge erlaub
   assert.equal(args[args.indexOf("--max-turns") + 1], "40");
 });
 
+test("Bericht-Lauf: nur das Unteragenten-Werkzeug dazu, sonst bleibt alles aus", () => {
+  const args = claudeArgs("/tmp/mcp.json", { maxTurns: 200, allowSubagents: true });
+  assert.equal(args[args.indexOf("--tools") + 1], "Agent");
+  assert.equal(args[args.indexOf("--allowedTools") + 1], "mcp__rulio__*,Agent");
+  assert.equal(args[args.indexOf("--max-turns") + 1], "200");
+  // Ohne die Angabe (ältere Server, normale Läufe): wie bisher
+  const plain = claudeArgs("/tmp/mcp.json", { maxTurns: 40, allowSubagents: false });
+  assert.equal(plain[plain.indexOf("--tools") + 1], "");
+  assert.equal(plain[plain.indexOf("--allowedTools") + 1], "mcp__rulio__*");
+});
+
 test("MCP-Konfiguration zeigt auf /mcp mit dem Schlüssel", () => {
   const c = JSON.parse(mcpConfig(cfg));
   assert.equal(c.mcpServers.rulio.url, "https://api.rulio.net/mcp");
