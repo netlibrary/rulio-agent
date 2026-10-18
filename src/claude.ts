@@ -6,15 +6,15 @@ import type { Config } from "./config.js";
 import type { RunOrder, RunResult } from "./rulio.js";
 
 /**
- * Einen Lauf mit Claude Code ausführen — dem unveränderten `claude`-Programm
- * mit dem Login des Nutzers. Abgesichert:
- *  - nur der rulio-MCP-Server (eigene, temporäre Konfiguration; alle anderen
- *    MCP-Server und die eingebauten Werkzeuge wie Bash/Read sind aus)
- *  - nur rulio-Werkzeuge erlaubt, alles andere wird ohne Nachfrage abgelehnt
- *  - Zeitdeckel (Abbruch) und Schrittdeckel
- * Bericht-Läufe (rulio-tickets#255) dürfen zusätzlich Unteragenten starten
- * (Werkzeug „Agent“): parallele Schritte, je Aktie einer. Unteragenten erben
- * nur, was der Lauf hat — die rulio-Werkzeuge; Bash, Dateien und Web bleiben aus.
+ * Execute a run with Claude Code — the unmodified `claude` program with the
+ * user's login. Safeguards:
+ *  - only the rulio MCP server (own, temporary configuration; all other MCP
+ *    servers and the built-in tools such as Bash/Read are off)
+ *  - only rulio tools allowed, everything else is denied without asking
+ *  - time limit (abort) and turn limit
+ * Report runs may also start subagents (tool "Agent"): parallel steps, one
+ * per stock. Subagents only inherit what the run has — the rulio tools; Bash,
+ * files and web stay off.
  */
 export function mcpConfig(cfg: Config): string {
   return JSON.stringify({
@@ -24,7 +24,7 @@ export function mcpConfig(cfg: Config): string {
   });
 }
 
-/** Eingebautes Werkzeug für Unteragenten in Claude Code (früher „Task“, heute ein Alias) */
+/** Built-in tool for subagents in Claude Code (formerly "Task", now an alias) */
 export const SUBAGENT_TOOL = "Agent";
 
 export function claudeArgs(configPath: string, order: Pick<RunOrder, "maxTurns" | "allowSubagents">): string[] {
@@ -48,11 +48,10 @@ export function claudeArgs(configPath: string, order: Pick<RunOrder, "maxTurns" 
   ];
 }
 
-/** Ergebnis von `--output-format json` lesen — tolerant, Felder ändern sich gelegentlich */
 /**
- * Das Hauptmodell eines Laufs: Claude Code nennt in `modelUsage` je Modell-ID
- * die Tokens (Unteraufgaben laufen oft auf einem kleineren Modell) — es zählt
- * das mit den meisten Ausgabe-Tokens. null, wenn die Angabe fehlt.
+ * The main model of a run: Claude Code lists the tokens per model ID in
+ * `modelUsage` (subtasks often run on a smaller model) — the one with the most
+ * output tokens counts. null if the field is missing.
  */
 export function mainModel(usage: unknown): string | null {
   if (!usage || typeof usage !== "object") return null;
@@ -68,6 +67,7 @@ export function mainModel(usage: unknown): string | null {
   return best;
 }
 
+/** Read the result of `--output-format json` — tolerant, fields change now and then */
 export function parseClaudeOutput(stdout: string, exitCode: number | null): RunResult {
   const text = stdout.trim();
   const start = text.lastIndexOf("\n{");
@@ -88,14 +88,14 @@ export function parseClaudeOutput(stdout: string, exitCode: number | null): RunR
       turns: typeof out.num_turns === "number" ? out.num_turns : null,
       costUsd: typeof out.total_cost_usd === "number" ? out.total_cost_usd : null,
       model: mainModel(out.modelUsage),
-      // Bei is_error steht der Grund im Ergebnistext (z. B. „Not logged in“), nicht im subtype
+      // With is_error the reason is in the result text (e.g. "Not logged in"), not in subtype
       error: failed ? (out.is_error && out.result ? out.result : (out.subtype ?? `Exit ${exitCode}`)) : null,
     };
   } catch {
     return {
       status: "error",
       summary: null,
-      error: `Ausgabe von Claude Code nicht lesbar (Exit ${exitCode}): ${text.slice(0, 500)}`,
+      error: `Claude Code output not readable (exit ${exitCode}): ${text.slice(0, 500)}`,
     };
   }
 }
@@ -103,7 +103,7 @@ export function parseClaudeOutput(stdout: string, exitCode: number | null): RunR
 export async function runClaude(cfg: Config, order: RunOrder): Promise<RunResult> {
   const dir = mkdtempSync(join(tmpdir(), "rulio-agent-"));
   const configPath = join(dir, "mcp.json");
-  // Enthält den rulio-Schlüssel: nur für den eigenen Nutzer lesbar, nach dem Lauf weg
+  // Contains the rulio key: readable only by the own user, removed after the run
   writeFileSync(configPath, mcpConfig(cfg), { mode: 0o600 });
   const env = { ...process.env };
   if (!cfg.useApiKey) delete env.ANTHROPIC_API_KEY;
@@ -121,12 +121,12 @@ export async function runClaude(cfg: Config, order: RunOrder): Promise<RunResult
       }, order.maxMinutes * 60_000);
       child.on("error", (err) => {
         clearTimeout(timer);
-        resolve({ status: "error", error: `Claude Code nicht startbar (${cfg.claudeBin}): ${err.message}` });
+        resolve({ status: "error", error: `Claude Code could not be started (${cfg.claudeBin}): ${err.message}` });
       });
       child.on("close", (code) => {
         clearTimeout(timer);
         if (timedOut) {
-          resolve({ status: "timeout", error: `Nach ${order.maxMinutes} Minuten abgebrochen`, summary: null });
+          resolve({ status: "timeout", error: `Aborted after ${order.maxMinutes} minutes`, summary: null });
           return;
         }
         const result = parseClaudeOutput(stdout, code);

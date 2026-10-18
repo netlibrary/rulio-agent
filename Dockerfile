@@ -1,13 +1,13 @@
-# rulio-agent für VMs: Claude Code + rulio-agent in einem Container.
+# rulio-agent for VMs: Claude Code + rulio-agent in one container.
 #
 #   docker build -t rulio-agent .
 #   docker run -d --restart unless-stopped \
 #     -e RULIO_TOKEN=rulio_… \
-#     -e CLAUDE_CODE_OAUTH_TOKEN=…   # einmal mit `claude setup-token` erzeugen
+#     -e CLAUDE_CODE_OAUTH_TOKEN=…   # create once with `claude setup-token`
 #     rulio-agent
 #
-# Der Claude-Login gehört dir: Das Token kommt aus `claude setup-token` auf
-# deinem Rechner und wird nur an Claude Code weitergegeben.
+# The Claude login is yours: the token comes from `claude setup-token` on your
+# machine and is only passed on to Claude Code.
 FROM node:22-slim
 
 RUN npm install -g @anthropic-ai/claude-code \

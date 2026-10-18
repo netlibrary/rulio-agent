@@ -1,7 +1,15 @@
 {
   "name": "rulio-agent",
   "version": "0.1.0",
-  "description": "Lässt einen KI-Agenten (Claude Code) nach Zeitplan mit rulio arbeiten",
+  "description": "Runs your own AI agent (Claude Code) on a schedule with rulio",
+  "keywords": [
+    "rulio",
+    "claude-code",
+    "ai-agent",
+    "mcp",
+    "paper-trading",
+    "scheduler"
+  ],
   "license": "MIT",
   "author": "Paul Hornig",
   "repository": {

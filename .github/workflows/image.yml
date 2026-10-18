@@ -1,9 +1,8 @@
-# Image für den Dauerbetrieb auf einer VM (rulio-tickets#30) → ghcr.io.
+# Image for continuous operation on a VM → ghcr.io.
 #
-# Nur bauen und ablegen: Ausgerollt wird in netlibrary/finance-deployment
-# (deploy-agent.yml), damit dieses Repo keinen Zugang zur VM braucht. Gebaut
-# wird für amd64 und arm64 — welche Architektur die VM hat, muss dieses Repo
-# dann nicht wissen.
+# Only build and store: rollout happens in netlibrary/finance-deployment
+# (deploy-agent.yml), so this repo needs no access to the VM. Built for amd64
+# and arm64 — this repo does not need to know which architecture the VM has.
 name: Image
 on:
   push:

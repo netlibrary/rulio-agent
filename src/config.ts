@@ -1,24 +1,23 @@
 import { hostname } from "node:os";
 
 /**
- * Einstellungen aus der Umgebung. Der rulio-Schlüssel ist Pflicht; der
- * Claude-Login gehört Claude Code selbst (`claude login` bzw.
- * CLAUDE_CODE_OAUTH_TOKEN aus `claude setup-token`) — rulio-agent liest ihn
- * nie.
+ * Settings from the environment. The rulio key is required; the Claude login
+ * belongs to Claude Code itself (`claude login` or CLAUDE_CODE_OAUTH_TOKEN
+ * from `claude setup-token`) — rulio-agent never reads it.
  */
 export interface Config {
   rulioUrl: string;
   rulioToken: string;
   claudeBin: string;
   clientName: string;
-  /** ANTHROPIC_API_KEY an Claude Code durchreichen (sonst entfernt: der Lauf soll das Abo nutzen) */
+  /** Pass ANTHROPIC_API_KEY on to Claude Code (otherwise removed: the run should use the subscription) */
   useApiKey: boolean;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const rulioToken = env.RULIO_TOKEN?.trim() ?? "";
   if (!rulioToken.startsWith("rulio_")) {
-    throw new Error("RULIO_TOKEN fehlt oder ist kein rulio-Schlüssel (rulio → Einstellungen → KI-Agent → Verbindung).");
+    throw new Error("RULIO_TOKEN is missing or not a rulio key (rulio → AI agent → Connection).");
   }
   return {
     rulioUrl: (env.RULIO_URL?.trim() || "https://api.rulio.net").replace(/\/+$/, ""),

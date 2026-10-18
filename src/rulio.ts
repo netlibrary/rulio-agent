@@ -1,15 +1,15 @@
 import type { Config } from "./config.js";
 
-/** Was rulio für einen Lauf vorgibt (Backend: agent/runner.ts) */
+/** What rulio specifies for a run (backend: agent/runner.ts) */
 export interface RunOrder {
   id: string;
   trigger: string;
   prompt: string;
   maxMinutes: number;
   maxTurns: number;
-  /** Bericht-Lauf (rulio-tickets#255): längere Deckel kommen schon in maxMinutes/maxTurns */
+  /** Report run: the longer limits already come in maxMinutes/maxTurns */
   kind?: "report";
-  /** Unteragenten erlaubt — parallele Schritte eines Berichts; ältere Server lassen es weg */
+  /** Subagents allowed — parallel steps of a report; older servers omit it */
   allowSubagents?: boolean;
 }
 
@@ -17,11 +17,11 @@ export interface PollReply {
   run: RunOrder | null;
   pollSeconds: number;
   enabled: boolean;
-  /** rulio hat die Anfrage offen gehalten (Long-Poll) — gleich wieder fragen; ältere Server lassen es weg */
+  /** rulio held the request open (long poll) — ask again right away; older servers omit it */
   longPoll?: boolean;
 }
 
-/** So lange darf rulio einen Abruf offen halten, bis etwas zu tun ist (Server-Höchstwert 25 s) */
+/** How long rulio may hold a poll open until there is something to do (server maximum 25 s) */
 export const POLL_WAIT_SECONDS = 25;
 
 export interface RunResult {
@@ -30,7 +30,7 @@ export interface RunResult {
   turns?: number | null;
   costUsd?: number | null;
   error?: string | null;
-  /** Hauptmodell des Laufs (Modell-ID aus Claude Code); null = unbekannt */
+  /** Main model of the run (model ID from Claude Code); null = unknown */
   model?: string | null;
 }
 
@@ -47,18 +47,19 @@ async function call<T>(cfg: Config, path: string, body: unknown, timeoutMs = 30_
 }
 
 /**
- * Abruf: meldet den Client als online; ist ein Lauf fällig, kommt sein Auftrag.
- * Long-Poll: Ist nichts fällig, hält rulio die Anfrage bis zu `wait` Sekunden
- * offen und antwortet sofort, sobald eine Chat-Nachricht kommt.
+ * Poll: reports the client as online; if a run is due, its order comes back.
+ * Long poll: if nothing is due, rulio holds the request open for up to `wait`
+ * seconds and answers as soon as a chat message arrives.
  */
 export function poll(cfg: Config, wait = POLL_WAIT_SECONDS): Promise<PollReply> {
   return call<PollReply>(cfg, "/api/agent/runner/poll", { client: cfg.clientName, wait }, (wait + 20) * 1000);
 }
 
 /**
- * Wann wieder fragen (Sekunden). Mit Long-Poll sofort — außer rulio kam ohne
- * Lauf deutlich vor der Wartezeit zurück (Notaus, Redis weg): dann im Takt
- * des Servers, damit kein Dauerfeuer entsteht. Ältere Server: ihr Takt, ab 5 s.
+ * When to ask again (seconds). With long poll right away — unless rulio came
+ * back without a run well before the wait time (emergency stop, Redis down):
+ * then at the server's interval, so there is no tight loop. Older servers:
+ * their interval, at least 5 s.
  */
 export function nextPollDelay(reply: PollReply, elapsedMs: number, wait = POLL_WAIT_SECONDS): number {
   if (!reply.longPoll) return Math.max(5, reply.pollSeconds);
