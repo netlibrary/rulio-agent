@@ -39,7 +39,7 @@ async function cycle(cfg: Config): Promise<number> {
   const delay = nextPollDelay(reply, Date.now() - asked);
   if (!reply.run) return delay;
   const order = reply.run;
-  log(`Run ${order.id} (${order.trigger}${order.kind === "report" ? ", report" : ""}) — at most ${order.maxMinutes} min${order.allowSubagents ? ", with subagents" : ""}`);
+  log(`Run ${order.id} (${order.trigger}${order.kind === "report" ? ", report" : ""}) — at most ${order.maxMinutes} min${order.allowSubagents ? ", with subagents" : ""}${order.web ? ", with web research" : ""}`);
   const started = Date.now();
   const result = await runClaude(cfg, order);
   log(`Run ${order.id}: ${result.status} after ${Math.round((Date.now() - started) / 1000)} s${result.error ? ` — ${result.error}` : ""}`);

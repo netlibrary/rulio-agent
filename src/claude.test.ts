@@ -24,6 +24,24 @@ test("report run: only the subagent tool added, everything else stays off", () =
   assert.equal(plain[plain.indexOf("--allowedTools") + 1], "mcp__rulio__*");
 });
 
+test("report run with web research: exactly WebSearch and WebFetch added", () => {
+  const args = claudeArgs("/tmp/mcp.json", { maxTurns: 200, allowSubagents: true, web: true });
+  assert.equal(args[args.indexOf("--tools") + 1], "Agent,WebSearch,WebFetch");
+  assert.equal(args[args.indexOf("--allowedTools") + 1], "mcp__rulio__*,Agent,WebSearch,WebFetch");
+  // Still only the rulio server, still no prompts
+  assert.ok(args.includes("--strict-mcp-config"));
+  assert.equal(args[args.indexOf("--permission-mode") + 1], "dontAsk");
+  // No shell, no files
+  for (const tool of ["Bash", "Read", "Write", "Edit"]) assert.ok(!args.join(" ").includes(tool), tool);
+});
+
+test("without web (normal runs, report runs without the option, older servers): no web tools", () => {
+  for (const order of [{ maxTurns: 40 }, { maxTurns: 200, allowSubagents: true }, { maxTurns: 200, allowSubagents: true, web: false }]) {
+    const args = claudeArgs("/tmp/mcp.json", order);
+    assert.ok(!args.join(" ").includes("Web"), JSON.stringify(order));
+  }
+});
+
 test("MCP configuration points to /mcp with the key", () => {
   const c = JSON.parse(mcpConfig(cfg));
   assert.equal(c.mcpServers.rulio.url, "https://api.rulio.net/mcp");

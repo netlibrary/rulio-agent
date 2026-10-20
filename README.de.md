@@ -18,7 +18,18 @@ nach und führt aus.
 
 - **Nur rulio:** Der Agent arbeitet ausschließlich mit den rulio-Werkzeugen
   (MCP). Eingebaute Werkzeuge von Claude Code wie Bash, Dateien lesen und
-  schreiben oder Web sind aus, andere MCP-Server ebenso.
+  schreiben oder Web sind aus (Web nur in Bericht-Läufen, die es erlauben,
+  siehe unten), andere MCP-Server ebenso.
+- **Web-Recherche in Bericht-Läufen:** Erlaubt die Arbeitsweise des Berichts
+  Web-Recherche (in der App: Bericht-Arbeitsweise → „Web-Recherche erlaubt“;
+  bei der Thema-Recherche standardmäßig an), kennzeichnet rulio den Lauf mit
+  `web`. Nur dann erlaubt rulio-agent zusätzlich `WebSearch` und `WebFetch` —
+  im Web suchen und Seiten lesen. Shell, Dateien und andere MCP-Server bleiben
+  aus. Weil Webseiten Anweisungen einschleusen können, **lehnt rulio in so
+  einem Lauf alle verändernden Werkzeuge serverseitig ab** (Regeln anlegen,
+  ändern, löschen, Ausstiege, Kern, Vorschläge, Listen, Zeichnungen,
+  Notizen); Lesen und der Bericht bleiben erlaubt. Abgelehnte Aufrufe stehen
+  im Protokoll. Web-Recherche verbraucht mehr von deinem KI-Abo.
 - **Unteragenten:** Bei Bericht-Läufen darf er zusätzlich Unteragenten starten.
   Sie haben dieselben Grenzen.
 - **rulio erzwingt** serverseitig, unabhängig von diesem Programm:
@@ -109,7 +120,8 @@ läuft der Agent auf deinem Abo und nicht auf API-Kosten. Das gilt nicht, wenn
   Bei Fehlern wartet es eine Minute.
 - **Lauf:** Ist ein Lauf fällig, startet rulio-agent `claude -p` mit einer
   temporären MCP-Konfiguration, die **nur** rulio enthält. Erlaubt ist nur
-  `mcp__rulio__*` (bei Bericht-Läufen zusätzlich Unteragenten). Zeitdeckel und
+  `mcp__rulio__*` (bei Bericht-Läufen zusätzlich Unteragenten, bei Web-Recherche
+  zusätzlich `WebSearch`/`WebFetch`). Zeitdeckel und
   Schrittdeckel kommen aus rulio.
 - **Ergebnis:** Am Ende meldet es Status, Zusammenfassung, Schritte, Modell und
   Kosten zurück. In rulio steht alles im KI-Agent-Bereich unter **Protokoll**.

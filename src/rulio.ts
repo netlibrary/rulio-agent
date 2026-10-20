@@ -11,6 +11,11 @@ export interface RunOrder {
   kind?: "report";
   /** Subagents allowed — parallel steps of a report; older servers omit it */
   allowSubagents?: boolean;
+  /**
+   * Web research allowed (report runs whose workflow permits it): web search
+   * and reading pages. rulio then rejects every changing tool for this run.
+   */
+  web?: boolean;
 }
 
 export interface PollReply {

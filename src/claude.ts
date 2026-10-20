@@ -13,8 +13,12 @@ import type { RunOrder, RunResult } from "./rulio.js";
  *  - only rulio tools allowed, everything else is denied without asking
  *  - time limit (abort) and turn limit
  * Report runs may also start subagents (tool "Agent"): parallel steps, one
- * per stock. Subagents only inherit what the run has — the rulio tools; Bash,
- * files and web stay off.
+ * per stock. Subagents only inherit what the run has — the rulio tools; Bash
+ * and files stay off.
+ * Report runs with web research (`web`, set by rulio) may also search the web
+ * and read pages (WebSearch, WebFetch) — nothing else. rulio itself rejects
+ * every changing tool in such a run, so instructions planted on a web page
+ * cannot create or change anything.
  */
 export function mcpConfig(cfg: Config): string {
   return JSON.stringify({
@@ -26,18 +30,25 @@ export function mcpConfig(cfg: Config): string {
 
 /** Built-in tool for subagents in Claude Code (formerly "Task", now an alias) */
 export const SUBAGENT_TOOL = "Agent";
+/** Built-in web tools in Claude Code: search and read pages — no shell, no files */
+export const WEB_TOOLS = ["WebSearch", "WebFetch"] as const;
 
-export function claudeArgs(configPath: string, order: Pick<RunOrder, "maxTurns" | "allowSubagents">): string[] {
-  const sub = order.allowSubagents === true;
+/** Built-in tools a run may use: none, plus subagents and web when rulio says so */
+export function builtinTools(order: Pick<RunOrder, "allowSubagents" | "web">): string[] {
+  return [...(order.allowSubagents === true ? [SUBAGENT_TOOL] : []), ...(order.web === true ? WEB_TOOLS : [])];
+}
+
+export function claudeArgs(configPath: string, order: Pick<RunOrder, "maxTurns" | "allowSubagents" | "web">): string[] {
+  const tools = builtinTools(order);
   return [
     "-p",
     "--mcp-config",
     configPath,
     "--strict-mcp-config",
     "--tools",
-    sub ? SUBAGENT_TOOL : "",
+    tools.join(","),
     "--allowedTools",
-    sub ? `mcp__rulio__*,${SUBAGENT_TOOL}` : "mcp__rulio__*",
+    ["mcp__rulio__*", ...tools].join(","),
     "--permission-mode",
     "dontAsk",
     "--max-turns",

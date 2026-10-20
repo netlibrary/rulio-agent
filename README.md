@@ -17,9 +17,20 @@ chat or a task. This program only checks in regularly and executes.
 
 - **rulio only:** The agent works exclusively with the rulio tools (MCP).
   Claude Code's built-in tools such as Bash, reading and writing files, or web
-  access are off, and so are other MCP servers.
+  access are off (web only in report runs that allow it, see below), and so are
+  other MCP servers.
 - **Subagents:** In report runs it may also start subagents. They have the same
   limits.
+- **Web research in report runs:** If the report's workflow allows it (in the
+  app: report workflow → "Web research allowed"; on by default for theme
+  research), rulio marks the run with `web`. Only then rulio-agent additionally
+  allows Claude Code's `WebSearch` and `WebFetch` — searching the web and
+  reading pages. Shell, files and other MCP servers stay off. Because web
+  pages can contain planted instructions, **rulio rejects every changing tool
+  in such a run on the server** (creating, changing or deleting rules, exits,
+  core fill, proposals, lists, drawings, notes); reading and the report itself
+  remain allowed. Rejected calls appear in the log. Web research uses more of
+  your AI subscription.
 - **rulio enforces** on the server, independently of this program:
   - its own rules only in the paper account, never with real money;
   - budget, number of rules and new rules per day;
@@ -111,8 +122,8 @@ agent runs on your subscription and not on API costs. This does not apply if
   seconds. On errors it waits a minute.
 - **Run:** When a run is due, rulio-agent starts `claude -p` with a temporary
   MCP configuration that contains **only** rulio. Only `mcp__rulio__*` is
-  allowed (plus subagents in report runs). Time and turn limits come from
-  rulio.
+  allowed (plus subagents in report runs, plus `WebSearch`/`WebFetch` in report
+  runs with web research). Time and turn limits come from rulio.
 - **Result:** At the end it reports status, summary, turns, model and cost back
   to rulio. In rulio you find everything in the AI agent section under **Log**.
 
