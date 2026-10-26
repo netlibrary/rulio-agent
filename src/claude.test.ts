@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { claudeArgs, mcpConfig, parseClaudeOutput } from "./claude.js";
+import { childEnv, claudeArgs, mcpConfig, parseClaudeOutput } from "./claude.js";
 
 const cfg = { rulioUrl: "https://api.rulio.net", rulioToken: "rulio_x", claudeBin: "claude", clientName: "t", useApiKey: false };
 
@@ -88,4 +88,19 @@ test("read output: with is_error the reason is in the result text", () => {
   const r = parseClaudeOutput(JSON.stringify({ subtype: "success", is_error: true, result: "Not logged in · Please run /login", num_turns: 1 }), 1);
   assert.equal(r.status, "error");
   assert.equal(r.error, "Not logged in · Please run /login");
+});
+
+test("child environment: without MCP_CONNECTION_NONBLOCKING, so the first step already has the rulio tools", () => {
+  const base = { PATH: "/usr/bin", HOME: "/home/a", MCP_CONNECTION_NONBLOCKING: "1", ANTHROPIC_API_KEY: "sk-x" };
+  const env = childEnv({ useApiKey: false }, base);
+  assert.equal("MCP_CONNECTION_NONBLOCKING" in env, false);
+  assert.equal("ANTHROPIC_API_KEY" in env, false);
+  assert.equal(env.PATH, "/usr/bin");
+  assert.equal(env.HOME, "/home/a");
+  // With the API key on: the key stays, the non-blocking switch still goes
+  const withKey = childEnv({ useApiKey: true }, base);
+  assert.equal(withKey.ANTHROPIC_API_KEY, "sk-x");
+  assert.equal("MCP_CONNECTION_NONBLOCKING" in withKey, false);
+  // The parent environment itself stays untouched
+  assert.equal(base.MCP_CONNECTION_NONBLOCKING, "1");
 });

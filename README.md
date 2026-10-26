@@ -114,6 +114,10 @@ If `ANTHROPIC_API_KEY` is set, rulio-agent removes it for the runs. That way the
 agent runs on your subscription and not on API costs. This does not apply if
 `RULIO_AGENT_USE_API_KEY=1` is set.
 
+The agent always waits for the rulio tools before the first step, even when it is
+started from a terminal of the Claude desktop app: rulio-agent removes
+`MCP_CONNECTION_NONBLOCKING` (which the app may pass on) for the runs.
+
 ## How a run works
 
 - **Polling:** rulio-agent calls `POST /api/agent/runner/poll` as a long poll.

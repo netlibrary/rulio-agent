@@ -111,13 +111,26 @@ export function parseClaudeOutput(stdout: string, exitCode: number | null): RunR
   }
 }
 
+/**
+ * Environment of the `claude` child process: everything from the parent except
+ * - `ANTHROPIC_API_KEY` (unless `useApiKey`): runs use the subscription, not API costs;
+ * - `MCP_CONNECTION_NONBLOCKING`, e.g. inherited from the Claude desktop app: with it
+ *   `claude` starts without waiting for the MCP connection, and the first step of a run
+ *   has no rulio tools. The agent always waits for them.
+ */
+export function childEnv(cfg: Pick<Config, "useApiKey">, base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const env = { ...base };
+  if (!cfg.useApiKey) delete env.ANTHROPIC_API_KEY;
+  delete env.MCP_CONNECTION_NONBLOCKING;
+  return env;
+}
+
 export async function runClaude(cfg: Config, order: RunOrder): Promise<RunResult> {
   const dir = mkdtempSync(join(tmpdir(), "rulio-agent-"));
   const configPath = join(dir, "mcp.json");
   // Contains the rulio key: readable only by the own user, removed after the run
   writeFileSync(configPath, mcpConfig(cfg), { mode: 0o600 });
-  const env = { ...process.env };
-  if (!cfg.useApiKey) delete env.ANTHROPIC_API_KEY;
+  const env = childEnv(cfg);
   try {
     return await new Promise<RunResult>((resolve) => {
       const child = spawn(cfg.claudeBin, claudeArgs(configPath, order), { env, stdio: ["pipe", "pipe", "pipe"] });
