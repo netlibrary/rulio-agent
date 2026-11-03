@@ -91,7 +91,8 @@ Code belongs to Anthropic and is not redistributed by us.
 ```bash
 claude setup-token        # on your machine: creates a token for scripts
 docker build -t rulio-agent https://github.com/netlibrary/rulio-agent.git
-docker run -d --restart unless-stopped \
+docker run -d --restart unless-stopped --name rulio-agent \
+  -v rulio-agent-keys:/home/agent/.rulio-agent \
   -e RULIO_TOKEN=rulio_… \
   -e CLAUDE_CODE_OAUTH_TOKEN=… \
   rulio-agent
@@ -100,11 +101,42 @@ docker run -d --restart unless-stopped \
 If the agent does not check in for more than 10 minutes, rulio shows it as
 offline.
 
+## Several accounts in one container
+
+One key belongs to exactly one account. For a second account, create another
+key in that account and add it to the running container. No restart is needed:
+
+```bash
+docker exec rulio-agent rulio-agent add-key rulio_…
+```
+
+| Command | What it does |
+| --- | --- |
+| `rulio-agent add-key <rulio_…>` | Adds a key to `~/.rulio-agent/keys` (mode `600`). A running rulio-agent picks it up within 30 s. |
+| `rulio-agent remove-key <…last 6 characters>` | Removes a key from the file. A key in `RULIO_TOKEN` stays. |
+| `rulio-agent list-keys` | Shows the keys by their last 6 characters. |
+
+- **One run at a time:** Runs from all accounts wait for each other, first come,
+  first served. While a run is going on, every account keeps checking in at
+  least once a minute, so rulio shows none of them as offline.
+- **Separate accounts:** A run only gets the key of its own account and only
+  sees that account.
+- **A due run** is picked up in a request of its own, one at a time and only
+  while no other run is going on.
+- **A revoked key:** It is logged once and tried again every 30 minutes. The
+  other keys keep running.
+- `check` checks all keys, `once` asks with each key once.
+- Keys appear in the log only by their last 6 characters.
+
+**Switching from an older container:** Build and start it once with the command
+above. `RULIO_TOKEN` keeps working. If `add-key` is missing, you are on an older
+version.
+
 ## Settings (environment variables)
 
 | Variable | Meaning | Default |
 | --- | --- | --- |
-| `RULIO_TOKEN` | Key from rulio (required) | — |
+| `RULIO_TOKEN` | Key from rulio (or use `add-key`) | — |
 | `RULIO_URL` | rulio address | `https://api.rulio.net` |
 | `CLAUDE_BIN` | Path to `claude` | `claude` |
 | `RULIO_CLIENT_NAME` | Name shown in rulio ("agent online") | `rulio-agent@<host>` |

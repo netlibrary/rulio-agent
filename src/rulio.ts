@@ -24,6 +24,8 @@ export interface PollReply {
   enabled: boolean;
   /** rulio held the request open (long poll) — ask again right away; older servers omit it */
   longPoll?: boolean;
+  /** Answer to `peek`: a run is due and waits to be picked up; older servers hand it out instead */
+  due?: boolean;
 }
 
 /** How long rulio may hold a poll open until there is something to do (server maximum 25 s) */
@@ -39,6 +41,19 @@ export interface RunResult {
   model?: string | null;
 }
 
+/** rulio answered with an error status */
+export class RulioError extends Error {
+  constructor(
+    readonly status: number,
+    text: string,
+  ) {
+    super(`rulio ${status}: ${text.slice(0, 300)}`);
+  }
+}
+
+/** The key itself is the problem: unknown, revoked or not allowed here */
+export const isKeyRejected = (err: unknown): boolean => err instanceof RulioError && (err.status === 401 || err.status === 403);
+
 async function call<T>(cfg: Config, path: string, body: unknown, timeoutMs = 30_000): Promise<T> {
   const res = await fetch(`${cfg.rulioUrl}${path}`, {
     method: "POST",
@@ -47,17 +62,27 @@ async function call<T>(cfg: Config, path: string, body: unknown, timeoutMs = 30_
     signal: AbortSignal.timeout(timeoutMs),
   });
   const text = await res.text();
-  if (!res.ok) throw new Error(`rulio ${res.status}: ${text.slice(0, 300)}`);
+  if (!res.ok) throw new RulioError(res.status, text);
   return JSON.parse(text) as T;
+}
+
+export interface PollOptions {
+  /** A run is going on: only check in, rulio hands out no order and does not hold the request open */
+  busy?: boolean;
+  /** Only find out whether a run is due: rulio answers `due` and hands out nothing */
+  peek?: boolean;
+  /** Seconds rulio may hold the request open */
+  wait?: number;
 }
 
 /**
  * Poll: reports the client as online; if a run is due, its order comes back.
- * Long poll: if nothing is due, rulio holds the request open for up to `wait`
- * seconds and answers as soon as a chat message arrives.
+ * Long poll: if nothing is due, rulio holds the request open for up to
+ * POLL_WAIT_SECONDS and answers as soon as a chat message arrives.
  */
-export function poll(cfg: Config, wait = POLL_WAIT_SECONDS): Promise<PollReply> {
-  return call<PollReply>(cfg, "/api/agent/runner/poll", { client: cfg.clientName, wait }, (wait + 20) * 1000);
+export function poll(cfg: Config, { busy, peek, wait = POLL_WAIT_SECONDS }: PollOptions = {}): Promise<PollReply> {
+  if (busy) return call<PollReply>(cfg, "/api/agent/runner/poll", { client: cfg.clientName, busy: true }, 20_000);
+  return call<PollReply>(cfg, "/api/agent/runner/poll", { client: cfg.clientName, wait, ...(peek ? { peek: true } : {}) }, (wait + 20) * 1000);
 }
 
 /**

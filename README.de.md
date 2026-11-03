@@ -90,7 +90,8 @@ Claude Code gehört Anthropic und wird nicht von uns weiterverteilt.
 ```bash
 claude setup-token        # auf deinem Rechner: erzeugt ein Token für Skripte
 docker build -t rulio-agent https://github.com/netlibrary/rulio-agent.git
-docker run -d --restart unless-stopped \
+docker run -d --restart unless-stopped --name rulio-agent \
+  -v rulio-agent-keys:/home/agent/.rulio-agent \
   -e RULIO_TOKEN=rulio_… \
   -e CLAUDE_CODE_OAUTH_TOKEN=… \
   rulio-agent
@@ -98,11 +99,42 @@ docker run -d --restart unless-stopped \
 
 Fragt der Agent länger als 10 Minuten nicht nach, meldet rulio ihn als offline.
 
+## Mehrere Konten in einem Container
+
+Ein Schlüssel gehört zu genau einem Konto. Für ein zweites Konto legst du dort
+einen weiteren Schlüssel an und trägst ihn im laufenden Container ein. Ein
+Neustart ist nicht nötig:
+
+```bash
+docker exec rulio-agent rulio-agent add-key rulio_…
+```
+
+| Befehl | Was er tut |
+| --- | --- |
+| `rulio-agent add-key <rulio_…>` | Trägt einen Schlüssel in `~/.rulio-agent/keys` ein (Rechte `600`). Ein laufender rulio-agent übernimmt ihn innerhalb von 30 s. |
+| `rulio-agent remove-key <…letzte 6 Zeichen>` | Entfernt einen Schlüssel aus der Datei. Ein Schlüssel in `RULIO_TOKEN` bleibt. |
+| `rulio-agent list-keys` | Zeigt die Schlüssel mit ihren letzten 6 Zeichen. |
+
+- **Ein Lauf zur Zeit:** Läufe aus allen Konten warten aufeinander, wer zuerst
+  dran ist, zuerst. Solange ein Lauf läuft, meldet sich jedes Konto mindestens
+  einmal pro Minute, damit rulio keines als offline anzeigt.
+- **Getrennte Konten:** Ein Lauf bekommt nur den Schlüssel seines Kontos und
+  sieht nur dieses Konto.
+- **Ein fälliger Lauf** wird in einer eigenen Anfrage abgeholt, immer nur einer
+  zugleich und nur, wenn gerade kein anderer läuft.
+- **Ein widerrufener Schlüssel:** Er wird einmal geloggt und alle 30 Minuten
+  erneut versucht. Die anderen Schlüssel laufen weiter.
+- `check` prüft alle Schlüssel, `once` fragt mit jedem Schlüssel einmal.
+- Im Log stehen Schlüssel nur mit ihren letzten 6 Zeichen.
+
+**Umstieg von einem älteren Container:** Einmal mit dem Befehl oben neu bauen und
+starten. `RULIO_TOKEN` gilt weiter. Fehlt `add-key`, läuft eine ältere Fassung.
+
 ## Einstellungen (Umgebungsvariablen)
 
 | Variable | Bedeutung | Standard |
 | --- | --- | --- |
-| `RULIO_TOKEN` | Schlüssel aus rulio (Pflicht) | — |
+| `RULIO_TOKEN` | Schlüssel aus rulio (oder `add-key`) | — |
 | `RULIO_URL` | rulio-Adresse | `https://api.rulio.net` |
 | `CLAUDE_BIN` | Pfad zu `claude` | `claude` |
 | `RULIO_CLIENT_NAME` | Name in rulio („Agent online“) | `rulio-agent@<Rechner>` |
