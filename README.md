@@ -4,7 +4,7 @@
 
 🇩🇪 [Deutsch](README.de.md)
 
-Lets your own AI agent (Claude Code) work with [rulio](https://rulio.net)
+Lets your own AI agent (Claude Code or OpenCode) work with [rulio](https://rulio.net)
 **on a schedule**. It reads your account and the market lists, compares ideas,
 creates its own rules **in the paper account** and writes reports. All of this
 happens within the limits you set in rulio.
