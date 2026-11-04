@@ -1,18 +1,38 @@
 import { spawn } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadSettings, type Config } from "./config.js";
-import { killTree, opencodeArgs, opencodeConfig, opencodeEnv, providerOf, runOpenCode, StreamReader } from "./opencode.js";
+import { killTree, linkOpencodeDeps, opencodeArgs, opencodeConfig, opencodeEnv, providerOf, runOpenCode, StreamReader } from "./opencode.js";
 import type { RunOrder } from "./rulio.js";
+
+test("packages from the image: nothing left for OpenCode to fetch in the run", { skip: process.platform === "win32" }, () => {
+  const root = mkdtempSync(join(tmpdir(), "rulio-deps-test-"));
+  const deps = join(root, "deps");
+  mkdirSync(join(deps, "node_modules"), { recursive: true });
+  writeFileSync(join(deps, "package.json"), '{"dependencies":{}}');
+  writeFileSync(join(deps, "package-lock.json"), "{}");
+  const home = join(root, "home");
+  assert.equal(linkOpencodeDeps(home, deps), true);
+  const dir = join(home, ".config", "opencode");
+  assert.equal(readFileSync(join(dir, "package.json"), "utf8"), '{"dependencies":{}}');
+  assert.equal(lstatSync(join(dir, "node_modules")).isSymbolicLink(), true);
+});
+
+test("outside the container: nothing prepared, OpenCode installs as before", () => {
+  const home = join(mkdtempSync(join(tmpdir(), "rulio-deps-test-")), "home");
+  assert.equal(linkOpencodeDeps(home, join(tmpdir(), "gibt-es-nicht-deps")), false);
+  assert.equal(existsSync(join(home, ".config")), false);
+});
 
 const cfg: Config = {
   rulioUrl: "https://api.rulio.net",
   rulioToken: "rulio_eigener",
   claudeBin: "claude",
   opencodeBin: "opencode",
+  opencodeDeps: "/none",
   opencodeKeys: ["OPENCODE_API_KEY"],
   flatRateProviders: ["opencode-go"],
   clientName: "t",

@@ -11,6 +11,8 @@ export interface Config {
   rulioToken: string;
   claudeBin: string;
   opencodeBin: string;
+  /** Packages OpenCode wants in its config directory, installed ahead of time (Dockerfile) */
+  opencodeDeps: string;
   /** Environment variables with provider keys that OpenCode gets, nothing else is passed on */
   opencodeKeys: string[];
   /** Providers billed by subscription: what OpenCode reports as cost is no real cost of the run */
@@ -30,6 +32,7 @@ export function loadSettings(env: NodeJS.ProcessEnv = process.env): Settings {
     rulioUrl: (env.RULIO_URL?.trim() || "https://api.rulio.net").replace(/\/+$/, ""),
     claudeBin: env.CLAUDE_BIN?.trim() || "claude",
     opencodeBin: env.OPENCODE_BIN?.trim() || "opencode",
+    opencodeDeps: env.RULIO_AGENT_OPENCODE_DEPS?.trim() || "/opt/opencode-deps",
     opencodeKeys: list(env.RULIO_AGENT_OPENCODE_KEYS, ["OPENCODE_API_KEY"]),
     flatRateProviders: list(env.RULIO_AGENT_FLAT_PROVIDERS, ["opencode-go"]),
     clientName: env.RULIO_CLIENT_NAME?.trim() || `rulio-agent@${hostname()}`,

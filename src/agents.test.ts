@@ -8,7 +8,7 @@ import type { Config } from "./config.js";
 const KEY_A = "rulio_aaaaaaaaaaaaaaaaAAAAAA";
 const KEY_B = "rulio_bbbbbbbbbbbbbbbbBBBBBB";
 const KEY_C = "rulio_ccccccccccccccccCCCCCC";
-const settings = { rulioUrl: "https://rulio.test", claudeBin: "claude", clientName: "rulio-agent@test", useApiKey: false, opencodeBin: "opencode", opencodeKeys: [], flatRateProviders: [] };
+const settings = { rulioUrl: "https://rulio.test", claudeBin: "claude", clientName: "rulio-agent@test", useApiKey: false, opencodeBin: "opencode", opencodeDeps: "/none", opencodeKeys: [], flatRateProviders: [] };
 const fast: Timing = { busyPollSeconds: 0.02, errorRetrySeconds: 0.02, rejectedRetrySeconds: 0.2, reloadSeconds: 0.02, longPollSeconds: 0.03, noOrderRetrySeconds: 0.02 };
 const order = (id: string, over: Partial<RunOrder> = {}): RunOrder => ({ id, trigger: "manual", prompt: "go", maxMinutes: 10, maxTurns: 40, ...over });
 const idle: PollReply = { run: null, pollSeconds: 60, enabled: true, longPoll: true };

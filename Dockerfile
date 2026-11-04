@@ -19,8 +19,19 @@
 FROM node:22.23.4-slim
 
 # OpenCode with a fixed version: its behaviour is part of the safeguards (src/opencode.ts). Higher only on purpose, after checking them again
-RUN npm install -g @anthropic-ai/claude-code opencode-ai@1.19.5 \
+ARG OPENCODE_VERSION=1.19.5
+RUN npm install -g @anthropic-ai/claude-code opencode-ai@${OPENCODE_VERSION} \
   && useradd --create-home agent
+
+# What OpenCode would otherwise fetch during every run: its plugin package with
+# dependencies (188 MB in a run, /tmp has 64 MB on the VM) and ripgrep, which
+# could not start from /tmp anyway (noexec). src/opencode.ts links the packages in
+RUN apt-get update && apt-get install -y --no-install-recommends ripgrep \
+  && rm -rf /var/lib/apt/lists/* \
+  && mkdir -p /opt/opencode-deps && cd /opt/opencode-deps \
+  && echo "{\"dependencies\":{\"@opencode-ai/plugin\":\"${OPENCODE_VERSION}\"}}" > package.json \
+  && npm install --no-audit --no-fund --ignore-scripts --cache /tmp/npm-cache \
+  && rm -rf /tmp/npm-cache
 
 WORKDIR /app
 COPY package.json tsconfig.json ./

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { childEnv, claudeArgs, mcpConfig, parseClaudeOutput } from "./claude.js";
 
-const cfg = { rulioUrl: "https://api.rulio.net", rulioToken: "rulio_x", claudeBin: "claude", clientName: "t", useApiKey: false, opencodeBin: "opencode", opencodeKeys: [], flatRateProviders: [] };
+const cfg = { rulioUrl: "https://api.rulio.net", rulioToken: "rulio_x", claudeBin: "claude", clientName: "t", useApiKey: false, opencodeBin: "opencode", opencodeDeps: "/none", opencodeKeys: [], flatRateProviders: [] };
 
 test("only the rulio server, built-in tools off, only rulio tools allowed", () => {
   const args = claudeArgs("/tmp/mcp.json", { maxTurns: 40 });

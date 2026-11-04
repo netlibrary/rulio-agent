@@ -173,6 +173,7 @@ bills per use, not for providers listed in `RULIO_AGENT_FLAT_PROVIDERS`.
 | `RULIO_URL` | rulio address | `https://api.rulio.net` |
 | `CLAUDE_BIN` | Path to `claude` | `claude` |
 | `OPENCODE_BIN` | Path to `opencode` | `opencode` |
+| `RULIO_AGENT_OPENCODE_DEPS` | Folder with the packages OpenCode would otherwise install on every run; included in the container. Without it, a run needs about 190 MB in the temp folder | `/opt/opencode-deps` |
 | `OPENCODE_API_KEY` | Provider key for keys with their own model | — |
 | `RULIO_AGENT_OPENCODE_KEYS` | Names of the variables with provider keys | `OPENCODE_API_KEY` |
 | `RULIO_AGENT_FLAT_PROVIDERS` | Providers billed by subscription, no cost per run | `opencode-go` |

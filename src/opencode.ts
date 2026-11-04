@@ -1,5 +1,5 @@
 import { execFileSync, spawn, type ChildProcess, type SpawnOptions } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Config } from "./config.js";
@@ -70,6 +70,22 @@ export function opencodeEnv(
     OPENCODE_DISABLE_PROJECT_CONFIG: "1",
     OPENCODE_CONFIG_CONTENT: JSON.stringify(opencodeConfig(cfg, order)),
   };
+}
+
+/**
+ * OpenCode installs its plugin package into the config directory on every start,
+ * even with no plugin in use: 188 MB and a download per run, on a /tmp of 64 MB
+ * on the VM. With the same packages in place from the image it has nothing to
+ * fetch. Without them (outside the container) it installs them as before.
+ */
+export function linkOpencodeDeps(home: string, deps: string): boolean {
+  const modules = join(deps, "node_modules");
+  if (!existsSync(modules)) return false;
+  const dir = join(home, ".config", "opencode");
+  mkdirSync(dir, { recursive: true });
+  for (const file of ["package.json", "package-lock.json"]) copyFileSync(join(deps, file), join(dir, file));
+  symlinkSync(modules, join(dir, "node_modules"), "dir");
+  return true;
 }
 
 /** Provider part of `provider/model` */
@@ -147,6 +163,7 @@ export async function runOpenCode(cfg: Config, order: RunOrder, spawnFn: SpawnFn
   const work = join(root, "work");
   mkdirSync(home);
   mkdirSync(work);
+  linkOpencodeDeps(home, cfg.opencodeDeps);
   const secrets = [cfg.rulioToken, ...cfg.opencodeKeys.map((name) => process.env[name]).filter((v): v is string => !!v)];
   const clean = (text: string | null): string | null => (text === null ? null : secrets.reduce((t, s) => t.split(s).join("***"), text));
   const reader = new StreamReader();
