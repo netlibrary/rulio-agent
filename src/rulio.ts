@@ -16,6 +16,8 @@ export interface RunOrder {
    * and reading pages. rulio then rejects every changing tool for this run.
    */
   web?: boolean;
+  /** `provider/model` of the key: runs with OpenCode. Empty = Claude Code; older servers omit it */
+  model?: string | null;
 }
 
 export interface PollReply {
@@ -37,7 +39,7 @@ export interface RunResult {
   turns?: number | null;
   costUsd?: number | null;
   error?: string | null;
-  /** Main model of the run (model ID from Claude Code); null = unknown */
+  /** Main model of the run: the model ID from Claude Code, with OpenCode the one from the order; null = unknown */
   model?: string | null;
 }
 

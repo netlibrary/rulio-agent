@@ -1,0 +1,197 @@
+import { execFileSync, spawn, type ChildProcess, type SpawnOptions } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { Config } from "./config.js";
+import type { RunOrder, RunResult } from "./rulio.js";
+
+/**
+ * Execute a run with OpenCode (`opencode run`), the engine for every model that
+ * is not the Claude subscription. The order names the model as
+ * `provider/model`, so changing the provider needs no code. Safeguards, the
+ * same as for Claude Code:
+ *  - only the rulio MCP server, all other tools denied, with `--auto` too
+ *  - an empty working directory and its own config, data and cache directories
+ *    per run: OPENCODE_CONFIG_CONTENT is merged with other configurations rather
+ *    than replacing them, so none may be reachable
+ *  - only the environment listed here, so the keys of other accounts and other
+ *    services stay out
+ *  - time limit and step limit, both enforced here. `steps` alone is no limit:
+ *    OpenCode only asks the model to stop and keeps offering it the tools
+ *
+ * A step limit reached while the next step has already started: its tool call
+ * is on its way to rulio and may still be carried out there.
+ */
+export const OPENCODE_VERSION = "1.19.5";
+/** Time between asking the process to end and forcing it */
+const KILL_GRACE_MS = 5000;
+/** From the parent, needed to start the program; nothing else is inherited */
+const BASE_ENV = ["PATH", "SYSTEMROOT", "TEMP", "TMP", "LANG", "NODE_EXTRA_CA_CERTS"];
+
+/** The configuration of one run: only rulio, everything else denied */
+export function opencodeConfig(cfg: Pick<Config, "rulioUrl" | "rulioToken">, order: Pick<RunOrder, "model" | "maxTurns">): Record<string, unknown> {
+  return {
+    model: order.model,
+    small_model: order.model,
+    autoupdate: false,
+    share: "disabled",
+    snapshot: false,
+    plugin: [],
+    mcp: { rulio: { type: "remote", url: `${cfg.rulioUrl}/mcp`, headers: { Authorization: `Bearer ${cfg.rulioToken}` }, oauth: false } },
+    permission: { "*": "deny", "rulio_*": "allow" },
+    // A polite limit: a model that follows it still writes its summary. The limit itself is in runOpenCode
+    agent: { build: { steps: order.maxTurns } },
+  };
+}
+
+export function opencodeArgs(prompt: string): string[] {
+  return ["run", "--format", "json", "--auto", "--pure", prompt];
+}
+
+/** Environment of one run: the base, its own directories, the provider keys named in the settings */
+export function opencodeEnv(
+  cfg: Pick<Config, "rulioUrl" | "rulioToken" | "opencodeKeys">,
+  order: Pick<RunOrder, "model" | "maxTurns">,
+  home: string,
+  base: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const name of [...BASE_ENV, ...cfg.opencodeKeys]) if (base[name] !== undefined) env[name] = base[name];
+  return {
+    ...env,
+    HOME: home,
+    USERPROFILE: home,
+    APPDATA: home,
+    LOCALAPPDATA: home,
+    XDG_CONFIG_HOME: join(home, ".config"),
+    XDG_DATA_HOME: join(home, ".data"),
+    XDG_CACHE_HOME: join(home, ".cache"),
+    XDG_STATE_HOME: join(home, ".state"),
+    OPENCODE_DISABLE_PROJECT_CONFIG: "1",
+    OPENCODE_CONFIG_CONTENT: JSON.stringify(opencodeConfig(cfg, order)),
+  };
+}
+
+/** Provider part of `provider/model` */
+export const providerOf = (model: string): string => model.split("/")[0] ?? "";
+
+/** What the JSON stream says so far; the stream also decides when the step limit is reached */
+export class StreamReader {
+  steps = 0;
+  private cost = 0;
+  private sawCost = false;
+  private text: string | null = null;
+  private error: string | null = null;
+  private rest = "";
+
+  /** Feed output; returns the number of finished steps */
+  push(chunk: string): number {
+    this.rest += chunk;
+    let i: number;
+    while ((i = this.rest.indexOf("\n")) >= 0) {
+      this.line(this.rest.slice(0, i));
+      this.rest = this.rest.slice(i + 1);
+    }
+    return this.steps;
+  }
+
+  private line(line: string): void {
+    let e: { type?: string; part?: { text?: unknown; cost?: unknown }; error?: { name?: unknown; data?: { message?: unknown } } };
+    try {
+      e = JSON.parse(line);
+    } catch {
+      return;
+    }
+    if (e.type === "step_finish") {
+      this.steps++;
+      if (typeof e.part?.cost === "number") {
+        this.cost += e.part.cost;
+        this.sawCost = true;
+      }
+    } else if (e.type === "text" && typeof e.part?.text === "string" && e.part.text.trim()) {
+      this.text = e.part.text;
+    } else if (e.type === "error") {
+      this.error = String(e.error?.data?.message ?? e.error?.name ?? "OpenCode reported an error");
+    }
+  }
+
+  result(): { summary: string | null; turns: number; cost: number | null; error: string | null } {
+    return { summary: this.text, turns: this.steps, cost: this.sawCost ? this.cost : null, error: this.error };
+  }
+}
+
+/** End the process and whatever it started */
+export function killTree(child: Pick<ChildProcess, "pid" | "kill">, signal: NodeJS.Signals = "SIGTERM", platform: NodeJS.Platform = process.platform): void {
+  if (!child.pid) return;
+  try {
+    if (platform === "win32") execFileSync("taskkill", ["/F", "/T", "/PID", String(child.pid)], { stdio: "ignore" });
+    // Its own process group (`detached`), so a started helper goes with it
+    else process.kill(-child.pid, signal);
+  } catch {
+    // Already gone
+  }
+}
+
+type SpawnFn = (command: string, args: string[], options: SpawnOptions) => ChildProcess;
+
+export async function runOpenCode(cfg: Config, order: RunOrder, spawnFn: SpawnFn = spawn): Promise<RunResult> {
+  const model = order.model!;
+  // Research runs read the web, and a page must not be able to steer such a run. For OpenCode that is not secured yet
+  if (order.web === true) return { status: "error", model, error: `Web research reports are not available with ${model}. They run with Claude Code.` };
+  const root = mkdtempSync(join(tmpdir(), "rulio-agent-"));
+  const home = join(root, "home");
+  const work = join(root, "work");
+  mkdirSync(home);
+  mkdirSync(work);
+  const secrets = [cfg.rulioToken, ...cfg.opencodeKeys.map((name) => process.env[name]).filter((v): v is string => !!v)];
+  const clean = (text: string | null): string | null => (text === null ? null : secrets.reduce((t, s) => t.split(s).join("***"), text));
+  const reader = new StreamReader();
+  const flat = cfg.flatRateProviders.includes(providerOf(model));
+  try {
+    return await new Promise<RunResult>((resolve) => {
+      const child = spawnFn(cfg.opencodeBin, opencodeArgs(order.prompt), {
+        cwd: work,
+        env: opencodeEnv(cfg, order, home),
+        stdio: ["ignore", "pipe", "pipe"],
+        detached: process.platform !== "win32",
+        windowsHide: true,
+      });
+      let stderr = "";
+      let stoppedFor: "steps" | "time" | null = null;
+      let force: ReturnType<typeof setTimeout> | null = null;
+      const stop = (why: "steps" | "time") => {
+        if (stoppedFor) return;
+        stoppedFor = why;
+        killTree(child);
+        force = setTimeout(() => killTree(child, "SIGKILL"), KILL_GRACE_MS);
+      };
+      const timer = setTimeout(() => stop("time"), order.maxMinutes * 60_000);
+      child.stdout?.on("data", (c: Buffer) => {
+        if (reader.push(c.toString()) >= order.maxTurns) stop("steps");
+      });
+      child.stderr?.on("data", (c: Buffer) => (stderr += c.toString()));
+      child.on("error", (err) => {
+        clearTimeout(timer);
+        resolve({ status: "error", model, error: `OpenCode could not be started (${cfg.opencodeBin}): ${err.message}` });
+      });
+      child.on("close", (code) => {
+        clearTimeout(timer);
+        if (force) clearTimeout(force);
+        const out = reader.result();
+        const base = { model, summary: clean(out.summary), turns: out.turns, costUsd: flat ? null : out.cost };
+        if (stoppedFor === "time") {
+          resolve({ ...base, status: "timeout", summary: null, error: `Aborted after ${order.maxMinutes} minutes` });
+          return;
+        }
+        if (stoppedFor === "steps") {
+          resolve({ ...base, status: "error", error: `Aborted at the limit of ${order.maxTurns} steps` });
+          return;
+        }
+        const failed = (code ?? 0) !== 0 || out.error !== null;
+        resolve({ ...base, status: failed ? "error" : "ok", error: failed ? clean(out.error ?? (stderr.slice(0, 1000) || `Exit ${code}`)) : null });
+      });
+    });
+  } finally {
+    rmSync(root, { recursive: true, force: true, maxRetries: 3 });
+  }
+}

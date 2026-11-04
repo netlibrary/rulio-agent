@@ -13,7 +13,7 @@ import { isKeyRejected, nextPollDelay, POLL_WAIT_SECONDS, type PollOptions, type
  */
 export interface AgentDeps {
   poll(cfg: Config, opts: PollOptions): Promise<PollReply>;
-  runClaude(cfg: Config, order: RunOrder): Promise<RunResult>;
+  runEngine(cfg: Config, order: RunOrder): Promise<RunResult>;
   finish(cfg: Config, id: string, result: RunResult): Promise<unknown>;
   log(msg: string): void;
   /** The keys that should be running right now */
@@ -54,7 +54,7 @@ interface Job {
 async function execute(deps: AgentDeps, cfg: Config, label: string, order: RunOrder): Promise<void> {
   deps.log(`${label} Run ${order.id} (${order.trigger}${order.kind === "report" ? ", report" : ""}) — at most ${order.maxMinutes} min${order.allowSubagents ? ", with subagents" : ""}${order.web ? ", with web research" : ""}`);
   const started = Date.now();
-  const result = await deps.runClaude(cfg, order).catch((err: Error): RunResult => ({ status: "error", error: err.message }));
+  const result = await deps.runEngine(cfg, order).catch((err: Error): RunResult => ({ status: "error", error: err.message }));
   deps.log(`${label} Run ${order.id}: ${result.status} after ${Math.round((Date.now() - started) / 1000)} s${result.error ? ` — ${result.error}` : ""}`);
   await deps.finish(cfg, order.id, result).catch((err: Error) => deps.log(`${label} Result not reported: ${err.message}`));
 }

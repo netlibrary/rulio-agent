@@ -4,7 +4,7 @@
 
 🇬🇧 [English](README.md)
 
-Lässt deinen eigenen KI-Agenten (Claude Code) **nach Zeitplan** mit
+Lässt deinen eigenen KI-Agenten (Claude Code oder OpenCode) **nach Zeitplan** mit
 [rulio](https://rulio.net) arbeiten. Er liest dein Konto und die Marktlisten,
 vergleicht Ideen, legt eigene Regeln **im Paper-Konto** an und schreibt
 Berichte. Das alles geschieht in den Grenzen, die du in rulio festlegst.
@@ -130,6 +130,40 @@ docker exec rulio-agent rulio-agent add-key rulio_…
 **Umstieg von einem älteren Container:** Einmal mit dem Befehl oben neu bauen und
 starten. `RULIO_TOKEN` gilt weiter. Fehlt `add-key`, läuft eine ältere Fassung.
 
+## Andere Modelle (OpenCode)
+
+Ein Schlüssel in rulio kann ein eigenes Modell haben. Läufe dieses Schlüssels
+nutzen dann [OpenCode](https://opencode.ai) statt Claude Code. Ein Schlüssel ohne
+Modell läuft wie bisher mit Claude Code, und dein Claude-Abo bleibt dort.
+
+Der Container enthält OpenCode mit fester Version. Sonst installierst du es mit
+`npm install -g opencode-ai@1.19.5`. Den Schlüssel des Anbieters gibst du
+rulio-agent mit:
+
+```bash
+docker run -d … -e OPENCODE_API_KEY=… rulio-agent
+```
+
+`OPENCODE_API_KEY` ist der Schlüssel aus der [OpenCode Console](https://opencode.ai/console),
+für OpenCode Zen (Abrechnung nach Nutzung) oder OpenCode Go (Abo mit
+Nutzungsgrenzen). Modelle heißen `anbieter/modell`, der Anbieter gehört also zum
+in rulio gewählten Modell. Ein anderer Anbieter braucht nur seinen Schlüssel:
+Trag die Variable in `RULIO_AGENT_OPENCODE_KEYS` ein.
+
+Die Schutzregeln sind dieselben wie bei Claude Code:
+
+- Nur die rulio-Werkzeuge. Shell, Dateien, Web und Unteragenten sind gesperrt.
+- Je Lauf ein eigener, leerer Arbeitsordner, eine eigene Konfiguration und eigene
+  Daten, danach gelöscht. Andere Konfigurationen werden nicht gelesen, und aus der
+  Umgebung gehen nur die zum Start nötigen Variablen und die Anbieter-Schlüssel mit.
+- rulio-agent setzt Zeit- und Schrittgrenze selbst durch und beendet den Prozess.
+  Hat der nächste Schritt in dem Moment schon begonnen, kann rulio seinen
+  Werkzeugaufruf noch ausführen.
+
+Berichtsläufe mit Web-Recherche werden für diese Modelle abgelehnt, Berichtsläufe
+mit Unteragenten laufen ohne sie. Kosten je Lauf stehen nur da, wo der Anbieter nach
+Nutzung abrechnet, nicht bei Anbietern aus `RULIO_AGENT_FLAT_PROVIDERS`.
+
 ## Einstellungen (Umgebungsvariablen)
 
 | Variable | Bedeutung | Standard |
@@ -137,6 +171,10 @@ starten. `RULIO_TOKEN` gilt weiter. Fehlt `add-key`, läuft eine ältere Fassung
 | `RULIO_TOKEN` | Schlüssel aus rulio (oder `add-key`) | — |
 | `RULIO_URL` | rulio-Adresse | `https://api.rulio.net` |
 | `CLAUDE_BIN` | Pfad zu `claude` | `claude` |
+| `OPENCODE_BIN` | Pfad zu `opencode` | `opencode` |
+| `OPENCODE_API_KEY` | Schlüssel des Anbieters für Schlüssel mit eigenem Modell | — |
+| `RULIO_AGENT_OPENCODE_KEYS` | Namen der Variablen mit Anbieter-Schlüsseln | `OPENCODE_API_KEY` |
+| `RULIO_AGENT_FLAT_PROVIDERS` | Anbieter mit Abo, keine Kosten je Lauf | `opencode-go` |
 | `RULIO_CLIENT_NAME` | Name in rulio („Agent online“) | `rulio-agent@<Rechner>` |
 | `RULIO_AGENT_USE_API_KEY` | `1` = `ANTHROPIC_API_KEY` nutzen statt Abo | aus |
 

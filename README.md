@@ -132,6 +132,39 @@ docker exec rulio-agent rulio-agent add-key rulio_…
 above. `RULIO_TOKEN` keeps working. If `add-key` is missing, you are on an older
 version.
 
+## Other models (OpenCode)
+
+A key in rulio can have its own model. Runs for that key then use
+[OpenCode](https://opencode.ai) instead of Claude Code. A key without a model
+runs with Claude Code as before, and your Claude subscription stays there.
+
+The container includes OpenCode with a fixed version. Elsewhere install it with
+`npm install -g opencode-ai@1.19.5`. Pass your provider key to rulio-agent:
+
+```bash
+docker run -d … -e OPENCODE_API_KEY=… rulio-agent
+```
+
+`OPENCODE_API_KEY` is the key from the [OpenCode Console](https://opencode.ai/console),
+for OpenCode Zen (billed per use) or OpenCode Go (subscription with usage limits).
+Models are named `provider/model`, so the provider is part of the model chosen
+in rulio. Another provider only needs its key: list the variable in
+`RULIO_AGENT_OPENCODE_KEYS`.
+
+The safeguards are the same as with Claude Code:
+
+- Only the rulio tools. Shell, files, web and subagents are denied.
+- Its own empty working directory, configuration and data per run, removed
+  afterwards. Other configurations are not read, and of the environment only the
+  variables needed to start and the provider keys are passed on.
+- rulio-agent enforces the time and step limits itself and ends the process. If
+  the next step has already started at that moment, its tool call may still be
+  carried out by rulio.
+
+Report runs with web research are rejected for these models and report runs
+with subagents run without them. Cost per run is only reported where the provider
+bills per use, not for providers listed in `RULIO_AGENT_FLAT_PROVIDERS`.
+
 ## Settings (environment variables)
 
 | Variable | Meaning | Default |
@@ -139,6 +172,10 @@ version.
 | `RULIO_TOKEN` | Key from rulio (or use `add-key`) | — |
 | `RULIO_URL` | rulio address | `https://api.rulio.net` |
 | `CLAUDE_BIN` | Path to `claude` | `claude` |
+| `OPENCODE_BIN` | Path to `opencode` | `opencode` |
+| `OPENCODE_API_KEY` | Provider key for keys with their own model | — |
+| `RULIO_AGENT_OPENCODE_KEYS` | Names of the variables with provider keys | `OPENCODE_API_KEY` |
+| `RULIO_AGENT_FLAT_PROVIDERS` | Providers billed by subscription, no cost per run | `opencode-go` |
 | `RULIO_CLIENT_NAME` | Name shown in rulio ("agent online") | `rulio-agent@<host>` |
 | `RULIO_AGENT_USE_API_KEY` | `1` = use `ANTHROPIC_API_KEY` instead of the subscription | off |
 

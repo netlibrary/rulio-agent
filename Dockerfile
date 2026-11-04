@@ -1,10 +1,11 @@
-# rulio-agent for VMs: Claude Code + rulio-agent in one container.
+# rulio-agent for VMs: Claude Code, OpenCode + rulio-agent in one container.
 #
 #   docker build -t rulio-agent .
 #   docker run -d --restart unless-stopped --name rulio-agent \
 #     -v rulio-agent-keys:/home/agent/.rulio-agent \
 #     -e RULIO_TOKEN=rulio_… \
 #     -e CLAUDE_CODE_OAUTH_TOKEN=…   # create once with `claude setup-token`
+#     -e OPENCODE_API_KEY=…          # only for keys with their own model
 #     rulio-agent
 #
 # More accounts in the same container, no restart needed:
@@ -17,7 +18,8 @@
 # vor 22.23.4). Höher nur bewusst: Tag hier und node-version in image.yml.
 FROM node:22.23.4-slim
 
-RUN npm install -g @anthropic-ai/claude-code \
+# OpenCode with a fixed version: its behaviour is part of the safeguards (src/opencode.ts). Higher only on purpose, after checking them again
+RUN npm install -g @anthropic-ai/claude-code opencode-ai@1.19.5 \
   && useradd --create-home agent
 
 WORKDIR /app

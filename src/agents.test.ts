@@ -8,7 +8,7 @@ import type { Config } from "./config.js";
 const KEY_A = "rulio_aaaaaaaaaaaaaaaaAAAAAA";
 const KEY_B = "rulio_bbbbbbbbbbbbbbbbBBBBBB";
 const KEY_C = "rulio_ccccccccccccccccCCCCCC";
-const settings = { rulioUrl: "https://rulio.test", claudeBin: "claude", clientName: "rulio-agent@test", useApiKey: false };
+const settings = { rulioUrl: "https://rulio.test", claudeBin: "claude", clientName: "rulio-agent@test", useApiKey: false, opencodeBin: "opencode", opencodeKeys: [], flatRateProviders: [] };
 const fast: Timing = { busyPollSeconds: 0.02, errorRetrySeconds: 0.02, rejectedRetrySeconds: 0.2, reloadSeconds: 0.02, longPollSeconds: 0.03, noOrderRetrySeconds: 0.02 };
 const order = (id: string, over: Partial<RunOrder> = {}): RunOrder => ({ id, trigger: "manual", prompt: "go", maxMinutes: 10, maxTurns: 40, ...over });
 const idle: PollReply = { run: null, pollSeconds: 60, enabled: true, longPoll: true };
@@ -74,7 +74,7 @@ function world(keys: string[]) {
         state.openPolls.set(key, (state.openPolls.get(key) ?? 1) - 1);
       }
     },
-    runClaude: (cfg, o) =>
+    runEngine: (cfg, o) =>
       new Promise((resolve) => {
         state.started.push({ id: o.id, cfg, order: o });
         state.active++;
@@ -381,7 +381,7 @@ test("a run that waited loses that time; if its limit passed while waiting it do
 test("a run that cannot even start is reported and does not block the next", async (t) => {
   const { state, deps } = world([KEY_A, KEY_B]);
   state.due.set(KEY_A, [order("a1")]);
-  const failing: AgentDeps = { ...deps, runClaude: (cfg, o) => (o.id === "a1" ? Promise.reject(new Error("no temp dir")) : deps.runClaude(cfg, o)) };
+  const failing: AgentDeps = { ...deps, runEngine: (cfg, o) => (o.id === "a1" ? Promise.reject(new Error("no temp dir")) : deps.runEngine(cfg, o)) };
   const agents = begin(t, state, new Agents(settings, failing, fast));
   await until("the report", () => state.finished.length === 1);
   assert.deepEqual(state.finished[0]!.result, { status: "error", error: "no temp dir" });
@@ -441,4 +441,20 @@ test("the request: busy does not wait, peek hands out nothing, otherwise a long 
   } finally {
     globalThis.fetch = realFetch;
   }
+});
+
+test("two accounts with different engines run one after the other, each with its own order", async () => {
+  const { runEngineFor } = await import("./engine.js");
+  const calls: string[] = [];
+  const engine = runEngineFor(
+    async (cfg, order) => (calls.push(`claude ${cfg.rulioToken} ${order.id}`), { status: "ok" }),
+    async (cfg, order) => (calls.push(`opencode ${cfg.rulioToken} ${order.id} ${order.model}`), { status: "ok" }),
+  );
+  const cfg = (rulioToken: string) => ({ rulioToken }) as never;
+  const order = { id: "a", trigger: "t", prompt: "p", maxMinutes: 1, maxTurns: 1 };
+  await engine(cfg("rulio_a"), order);
+  await engine(cfg("rulio_b"), { ...order, id: "b", model: "opencode/m" });
+  await engine(cfg("rulio_c"), { ...order, id: "c", model: "" });
+  await engine(cfg("rulio_d"), { ...order, id: "d", model: null });
+  assert.deepEqual(calls, ["claude rulio_a a", "opencode rulio_b b opencode/m", "claude rulio_c c", "claude rulio_d d"]);
 });

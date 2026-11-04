@@ -4,12 +4,12 @@ import { loadSettings, type Config, type Settings } from "./config.js";
 import { Agents, askOnce, type AgentDeps } from "./agents.js";
 import { addKey, allKeys, keysFile, keyTail, redactKeys, removeKey } from "./keys.js";
 import { finish, poll } from "./rulio.js";
-import { runClaude } from "./claude.js";
+import { runEngine } from "./engine.js";
 
 /**
  * rulio-agent — regularly asks rulio whether a run is due and lets Claude Code
- * work through it. WHEN a run is due is decided by rulio (schedule in the
- * app); this program only executes.
+ * or, for a key with its own model, OpenCode work through it. WHEN a run is due
+ * is decided by rulio (schedule in the app); this program only executes.
  *
  *   rulio-agent run                keep running (default)
  *   rulio-agent once               ask once with each key and execute due runs
@@ -23,7 +23,7 @@ const HELP = `Usage: rulio-agent [command]
 Commands:
   run                 keep running and execute due runs, one at a time (default)
   once                ask rulio once with each key, execute due runs, then exit
-  check               check the setup (all rulio keys, Claude Code login)
+  check               check the setup (all rulio keys, Claude Code login, OpenCode)
   add-key <rulio_…>   add a key for another account; a running rulio-agent picks it up within 30 s
   remove-key <…tail>  remove a key from the file by its last 6 characters
   list-keys           show the keys by their last 6 characters
@@ -33,6 +33,10 @@ Environment:
   RULIO_TOKEN              key from rulio: rulio → AI agent → Connection (or use add-key)
   RULIO_URL                rulio address (default https://api.rulio.net)
   CLAUDE_BIN               path to claude (default claude)
+  OPENCODE_BIN             path to opencode (default opencode)
+  OPENCODE_API_KEY         provider key for keys with their own model; OpenCode gets it, nothing else reads it
+  RULIO_AGENT_OPENCODE_KEYS   names of the variables with provider keys (default OPENCODE_API_KEY)
+  RULIO_AGENT_FLAT_PROVIDERS  providers billed by subscription, no cost per run (default opencode-go)
   RULIO_CLIENT_NAME        name shown in rulio (default rulio-agent@<host>)
   RULIO_AGENT_USE_API_KEY  1 = use ANTHROPIC_API_KEY instead of the subscription
 
@@ -40,6 +44,20 @@ More: https://github.com/netlibrary/rulio-agent`;
 const log = (msg: string) => console.log(`${new Date().toISOString()} ${redactKeys(msg)}`);
 
 const NO_KEYS = "No rulio key: set RULIO_TOKEN or run `rulio-agent add-key rulio_…` (rulio → AI agent → Connection).";
+
+/** Which engine can run? Claude Code alone, OpenCode alone or both; without any there is nothing to do */
+function checkEngines(settings: Settings): void {
+  const open = spawnSync(settings.opencodeBin, ["--version"], { encoding: "utf8" });
+  const opencode = !open.error && open.status === 0;
+  const keyed = settings.opencodeKeys.some((name) => !!process.env[name]);
+  if (opencode) log(`OpenCode: ${open.stdout.trim()}${keyed ? "" : " (no provider key: keys with their own model cannot run)"}`);
+  try {
+    checkClaude(settings);
+  } catch (err) {
+    if (!opencode || !keyed) throw err;
+    log(`${(err as Error).message} Keys with their own model still run with OpenCode.`);
+  }
+}
 
 function checkClaude(settings: Settings): void {
   const v = spawnSync(settings.claudeBin, ["--version"], { encoding: "utf8" });
@@ -111,7 +129,7 @@ async function main(): Promise<void> {
   const first = keys();
   if (!first.length && cmd !== "run") throw new Error(NO_KEYS);
   const configs = first.map((rulioToken): Config => ({ ...settings, rulioToken }));
-  checkClaude(settings);
+  checkEngines(settings);
   // Before the first run: say right away if the Claude login is missing or a key does not fit
   const failed = await checkKeys(configs);
   if (cmd === "check") {
@@ -121,7 +139,7 @@ async function main(): Promise<void> {
   }
   // A key that does not work must not hold up the others; without any working key there is nothing to do
   if (configs.length && failed.length === configs.length) throw failed[0]!;
-  const deps: AgentDeps = { poll, runClaude, finish, log, keys };
+  const deps: AgentDeps = { poll, runEngine, finish, log, keys };
   if (cmd === "once") {
     const errors: Error[] = [];
     for (const cfg of configs) {
