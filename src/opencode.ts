@@ -138,6 +138,10 @@ export async function runOpenCode(cfg: Config, order: RunOrder, spawnFn: SpawnFn
   const model = order.model!;
   // Research runs read the web, and a page must not be able to steer such a run. For OpenCode that is not secured yet
   if (order.web === true) return { status: "error", model, error: `Web research reports are not available with ${model}. They run with Claude Code.` };
+  // Ohne Schlüssel des Anbieters käme nur eine unverständliche Absage von dort
+  if (!cfg.opencodeKeys.some((name) => process.env[name])) {
+    return { status: "error", model, error: `No provider key in this container for ${model}. Set ${cfg.opencodeKeys.join(" or ") || "RULIO_AGENT_OPENCODE_KEYS"} on rulio-agent and restart it, or choose Claude Code for this key in rulio.` };
+  }
   const root = mkdtempSync(join(tmpdir(), "rulio-agent-"));
   const home = join(root, "home");
   const work = join(root, "work");

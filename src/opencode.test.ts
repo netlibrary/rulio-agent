@@ -18,6 +18,7 @@ const cfg: Config = {
   clientName: "t",
   useApiKey: false,
 };
+process.env.OPENCODE_API_KEY = "zen-test";
 const order: RunOrder = { id: "r1", trigger: "manual", prompt: "Los", maxMinutes: 1, maxTurns: 3, model: "opencode/some-model" };
 
 test("the configuration of a run holds only rulio with the key of this run, everything else denied", () => {
@@ -142,6 +143,25 @@ test("web research is rejected with a clear reason, nothing is started", async (
 test("a report with subagents runs without them: no such tool is allowed", () => {
   const c = opencodeConfig(cfg, { ...order, allowSubagents: true } as RunOrder) as { permission: Record<string, string> };
   assert.deepEqual(c.permission, { "*": "deny", "rulio_*": "allow" });
+});
+
+test("no provider key: a clear reason that names the variable and no provider, nothing is started", async () => {
+  let started = false;
+  const spy = ((...args: Parameters<typeof spawn>) => {
+    started = true;
+    return spawn(...args);
+  }) as typeof spawn;
+  const saved = process.env.OPENCODE_API_KEY;
+  delete process.env.OPENCODE_API_KEY;
+  try {
+    const r = await runOpenCode(cfg, order, spy);
+    assert.equal(r.status, "error");
+    assert.match(r.error!, /No provider key in this container for opencode\/some-model\. Set OPENCODE_API_KEY/);
+    assert.ok(!/zen|go\b/i.test(r.error!.replace(/opencode/gi, "")));
+    assert.equal(started, false);
+  } finally {
+    process.env.OPENCODE_API_KEY = saved;
+  }
 });
 
 test("program missing: a clear error", async () => {
