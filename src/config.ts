@@ -33,7 +33,7 @@ export function loadSettings(env: NodeJS.ProcessEnv = process.env): Settings {
     claudeBin: env.CLAUDE_BIN?.trim() || "claude",
     opencodeBin: env.OPENCODE_BIN?.trim() || "opencode",
     opencodeDeps: env.RULIO_AGENT_OPENCODE_DEPS?.trim() || "/opt/opencode-deps",
-    opencodeKeys: list(env.RULIO_AGENT_OPENCODE_KEYS, ["OPENCODE_API_KEY"]),
+    opencodeKeys: list(env.RULIO_AGENT_OPENCODE_KEYS, ["OPENCODE_API_KEY", "OPENROUTER_API_KEY"]),
     flatRateProviders: list(env.RULIO_AGENT_FLAT_PROVIDERS, ["opencode-go"]),
     clientName: env.RULIO_CLIENT_NAME?.trim() || `rulio-agent@${hostname()}`,
     useApiKey: env.RULIO_AGENT_USE_API_KEY === "1",

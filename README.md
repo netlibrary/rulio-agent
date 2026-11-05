@@ -147,8 +147,9 @@ docker run -d … -e OPENCODE_API_KEY=… rulio-agent
 
 `OPENCODE_API_KEY` is the key from the [OpenCode Console](https://opencode.ai/console),
 for OpenCode Zen (billed per use) or OpenCode Go (subscription with usage limits).
-Models are named `provider/model`, so the provider is part of the model chosen
-in rulio. Another provider only needs its key: list the variable in
+For models from [OpenRouter](https://openrouter.ai/) pass `OPENROUTER_API_KEY`
+instead. Models are named `provider/model`, so the provider is part of the model
+chosen in rulio. Another provider only needs its key: list the variable in
 `RULIO_AGENT_OPENCODE_KEYS`.
 
 The safeguards are the same as with Claude Code:
@@ -175,7 +176,8 @@ bills per use, not for providers listed in `RULIO_AGENT_FLAT_PROVIDERS`.
 | `OPENCODE_BIN` | Path to `opencode` | `opencode` |
 | `RULIO_AGENT_OPENCODE_DEPS` | Folder with the packages OpenCode would otherwise install on every run; included in the container. Without it, a run needs about 190 MB in the temp folder | `/opt/opencode-deps` |
 | `OPENCODE_API_KEY` | Provider key for keys with their own model | — |
-| `RULIO_AGENT_OPENCODE_KEYS` | Names of the variables with provider keys | `OPENCODE_API_KEY` |
+| `OPENROUTER_API_KEY` | The same for models from OpenRouter | — |
+| `RULIO_AGENT_OPENCODE_KEYS` | Names of the variables with provider keys | `OPENCODE_API_KEY,OPENROUTER_API_KEY` |
 | `RULIO_AGENT_FLAT_PROVIDERS` | Providers billed by subscription, no cost per run | `opencode-go` |
 | `RULIO_CLIENT_NAME` | Name shown in rulio ("agent online") | `rulio-agent@<host>` |
 | `RULIO_AGENT_USE_API_KEY` | `1` = use `ANTHROPIC_API_KEY` instead of the subscription | off |

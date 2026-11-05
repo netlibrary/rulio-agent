@@ -67,7 +67,7 @@ test("another provider needs only a setting", () => {
   const s = loadSettings({ RULIO_AGENT_OPENCODE_KEYS: "OPENROUTER_API_KEY, OPENCODE_API_KEY", RULIO_AGENT_FLAT_PROVIDERS: "" });
   assert.deepEqual(s.opencodeKeys, ["OPENROUTER_API_KEY", "OPENCODE_API_KEY"]);
   assert.deepEqual(s.flatRateProviders, []);
-  assert.deepEqual(loadSettings({}).opencodeKeys, ["OPENCODE_API_KEY"]);
+  assert.deepEqual(loadSettings({}).opencodeKeys, ["OPENCODE_API_KEY", "OPENROUTER_API_KEY"]);
   assert.deepEqual(loadSettings({}).flatRateProviders, ["opencode-go"]);
   assert.equal(providerOf("openrouter/some/model"), "openrouter");
 });
@@ -97,7 +97,7 @@ test("reading the stream: steps, cost, the last text, errors, also split across 
 });
 
 /** A stand-in for the program, started with node; `mode` says how it behaves */
-function fake(mode: "endless" | "hang" | "done" | "fail" | "leak"): typeof spawn {
+function fake(mode: "endless" | "hang" | "done" | "fail" | "leak" | "openrouter"): typeof spawn {
   const dir = mkdtempSync(join(tmpdir(), "fake-opencode-"));
   const path = join(dir, "fake.mjs");
   writeFileSync(
@@ -109,6 +109,7 @@ if (mode === "endless") setInterval(step, 20);
 if (mode === "hang") { step(); setInterval(() => {}, 1000); }
 if (mode === "done") { say({ type: "text", part: { text: "Zusammenfassung" } }); step(); }
 if (mode === "fail") { process.stderr.write("schlecht rulio_eigener"); process.exit(3); }
+if (mode === "openrouter") { say({ type: "text", part: { text: "Schlüssel " + process.env.OPENROUTER_API_KEY } }); say({ type: "error", error: { data: { message: process.env.OPENROUTER_API_KEY + " abgelehnt" } } }); }
 if (mode === "leak") { say({ type: "text", part: { text: "Schlüssel rulio_eigener" } }); say({ type: "error", error: { data: { message: "rulio_eigener abgelehnt" } } }); }
 `,
   );
@@ -163,6 +164,46 @@ test("web research is rejected with a clear reason, nothing is started", async (
 test("a report with subagents runs without them: no such tool is allowed", () => {
   const c = opencodeConfig(cfg, { ...order, allowSubagents: true } as RunOrder) as { permission: Record<string, string> };
   assert.deepEqual(c.permission, { "*": "deny", "rulio_*": "allow" });
+});
+
+test("OpenRouter: the key reaches the run with no further setting and stays out of what goes back; ids with several slashes", async () => {
+  const defaults: Config = { ...cfg, opencodeKeys: loadSettings({}).opencodeKeys };
+  const orderOr: RunOrder = { ...order, model: "openrouter/minimax/minimax-m3.1-flash" };
+  assert.equal(opencodeEnv(defaults, orderOr, "/x/home", { OPENROUTER_API_KEY: "or-geheim" }).OPENROUTER_API_KEY, "or-geheim");
+  assert.equal((opencodeConfig(defaults, orderOr) as { model: string }).model, "openrouter/minimax/minimax-m3.1-flash");
+  assert.ok(!(opencodeEnv(defaults, orderOr, "/x/home", { OPENROUTER_API_KEY: "or-geheim" }).OPENCODE_CONFIG_CONTENT ?? "").includes("or-geheim"));
+  const savedZen = process.env.OPENCODE_API_KEY;
+  delete process.env.OPENCODE_API_KEY;
+  process.env.OPENROUTER_API_KEY = "or-geheim";
+  try {
+    const r = await runOpenCode(defaults, orderOr, fake("openrouter"));
+    assert.equal(r.model, "openrouter/minimax/minimax-m3.1-flash");
+    // Der gestellte Lauf gibt den Schlüssel aus: Er kam dort an, und zurück geht er nicht
+    assert.match(r.summary!, /Schlüssel \*\*\*/);
+    assert.ok(!JSON.stringify(r).includes("or-geheim"));
+  } finally {
+    process.env.OPENCODE_API_KEY = savedZen;
+    delete process.env.OPENROUTER_API_KEY;
+  }
+});
+
+test("no provider key by default: the reason names both variables, nothing is started", async () => {
+  let started = false;
+  const spy = ((...args: Parameters<typeof spawn>) => {
+    started = true;
+    return spawn(...args);
+  }) as typeof spawn;
+  const savedZen = process.env.OPENCODE_API_KEY;
+  delete process.env.OPENCODE_API_KEY;
+  delete process.env.OPENROUTER_API_KEY;
+  try {
+    const r = await runOpenCode({ ...cfg, opencodeKeys: loadSettings({}).opencodeKeys }, { ...order, model: "openrouter/minimax/minimax-m3.1-flash" }, spy);
+    assert.equal(r.status, "error");
+    assert.match(r.error!, /Set OPENCODE_API_KEY or OPENROUTER_API_KEY/);
+    assert.equal(started, false);
+  } finally {
+    process.env.OPENCODE_API_KEY = savedZen;
+  }
 });
 
 test("no provider key: a clear reason that names the variable and no provider, nothing is started", async () => {

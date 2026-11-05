@@ -35,7 +35,8 @@ Environment:
   CLAUDE_BIN               path to claude (default claude)
   OPENCODE_BIN             path to opencode (default opencode)
   OPENCODE_API_KEY         provider key for keys with their own model; OpenCode gets it, nothing else reads it
-  RULIO_AGENT_OPENCODE_KEYS   names of the variables with provider keys (default OPENCODE_API_KEY)
+  OPENROUTER_API_KEY       the same for models from OpenRouter
+  RULIO_AGENT_OPENCODE_KEYS   names of the variables with provider keys (default OPENCODE_API_KEY,OPENROUTER_API_KEY)
   RULIO_AGENT_FLAT_PROVIDERS  providers billed by subscription, no cost per run (default opencode-go)
   RULIO_CLIENT_NAME        name shown in rulio (default rulio-agent@<host>)
   RULIO_AGENT_USE_API_KEY  1 = use ANTHROPIC_API_KEY instead of the subscription
