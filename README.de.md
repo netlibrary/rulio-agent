@@ -151,6 +151,14 @@ stattdessen `OPENROUTER_API_KEY` mit. Modelle heißen `anbieter/modell`, der Anb
 gehört also zum in rulio gewählten Modell. Ein anderer Anbieter braucht nur seinen
 Schlüssel: Trag die Variable in `RULIO_AGENT_OPENCODE_KEYS` ein.
 
+Bei jedem Abruf meldet rulio-agent seine Einrichtung an rulio, damit die App
+zeigen kann, wo er läuft und ob das Modell bezahlt werden kann: läuft in Docker
+(ja oder nein, über `/.dockerenv`), Claude Code angemeldet (ja, nein, unbekannt;
+geprüft beim Start und höchstens alle 10 Minuten), nutzt
+`RULIO_AGENT_USE_API_KEY` (ja oder nein), Schlüssel des Anbieters vorhanden (ja
+oder nein). Nie gesendet werden ein Schlüssel, der Wert einer Variablen oder ihr
+Name.
+
 Die Schutzregeln sind dieselben wie bei Claude Code:
 
 - Nur die rulio-Werkzeuge. Shell, Dateien, Web und Unteragenten sind gesperrt.

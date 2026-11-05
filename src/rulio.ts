@@ -1,4 +1,5 @@
 import type { Config } from "./config.js";
+import { currentSetup } from "./setup.js";
 
 /** What rulio specifies for a run (backend: agent/runner.ts) */
 export interface RunOrder {
@@ -82,9 +83,11 @@ export interface PollOptions {
  * Long poll: if nothing is due, rulio holds the request open for up to
  * POLL_WAIT_SECONDS and answers as soon as a chat message arrives.
  */
-export function poll(cfg: Config, { busy, peek, wait = POLL_WAIT_SECONDS }: PollOptions = {}): Promise<PollReply> {
-  if (busy) return call<PollReply>(cfg, "/api/agent/runner/poll", { client: cfg.clientName, busy: true }, 20_000);
-  return call<PollReply>(cfg, "/api/agent/runner/poll", { client: cfg.clientName, wait, ...(peek ? { peek: true } : {}) }, (wait + 20) * 1000);
+export async function poll(cfg: Config, { busy, peek, wait = POLL_WAIT_SECONDS }: PollOptions = {}): Promise<PollReply> {
+  // Only yes or no about the setup, see setup.ts
+  const setup = await currentSetup(cfg);
+  if (busy) return call<PollReply>(cfg, "/api/agent/runner/poll", { client: cfg.clientName, busy: true, setup }, 20_000);
+  return call<PollReply>(cfg, "/api/agent/runner/poll", { client: cfg.clientName, wait, setup, ...(peek ? { peek: true } : {}) }, (wait + 20) * 1000);
 }
 
 /**

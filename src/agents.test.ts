@@ -430,7 +430,8 @@ test("the request: busy does not wait, peek hands out nothing, otherwise a long 
     await poll(cfg, { peek: true });
     await poll(cfg, { wait: 0 });
     await poll(cfg);
-    assert.deepEqual(bodies, [
+    assert.ok(bodies.every((b) => typeof b.setup === "object"));
+    assert.deepEqual(bodies.map(({ setup: _setup, ...rest }) => rest), [
       { client: "rulio-agent@test", busy: true },
       { client: "rulio-agent@test", wait: 25, peek: true },
       { client: "rulio-agent@test", wait: 0 },

@@ -152,6 +152,13 @@ instead. Models are named `provider/model`, so the provider is part of the model
 chosen in rulio. Another provider only needs its key: list the variable in
 `RULIO_AGENT_OPENCODE_KEYS`.
 
+With every poll rulio-agent tells rulio about its setup, so the app can show
+where it runs and whether the model can be paid for: running in Docker (yes or
+no, from `/.dockerenv`), Claude Code logged in (yes, no, unknown; checked at the
+start and at most every 10 minutes), using `RULIO_AGENT_USE_API_KEY` (yes or no),
+a provider key present (yes or no). It never sends a key, the value of a variable
+or its name.
+
 The safeguards are the same as with Claude Code:
 
 - Only the rulio tools. Shell, files, web and subagents are denied.
