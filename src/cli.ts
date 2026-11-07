@@ -5,9 +5,10 @@ import { Agents, askOnce, type AgentDeps } from "./agents.js";
 import { addKey, allKeys, keysFile, keyTail, redactKeys, removeKey } from "./keys.js";
 import { finish, poll } from "./rulio.js";
 import { runEngine } from "./engine.js";
+import { HELP, keyAdded, keyRemoved, NO_KEYS, startLine } from "./texts.js";
 
 /**
- * rulio-agent — regularly asks rulio whether a run is due and lets Claude Code
+ * rulio-agent (in rulio: Agentio) — regularly asks rulio whether a run is due and lets Claude Code
  * or, for a key with its own model, OpenCode work through it. WHEN a run is due
  * is decided by rulio (schedule in the app); this program only executes.
  *
@@ -18,33 +19,8 @@ import { runEngine } from "./engine.js";
  *   rulio-agent remove-key <tail>  remove a key by its last 6 characters
  *   rulio-agent list-keys          show the keys by their last 6 characters
  */
-const HELP = `Usage: rulio-agent [command]
-
-Commands:
-  run                 keep running and execute due runs, one at a time (default)
-  once                ask rulio once with each key, execute due runs, then exit
-  check               check the setup (all rulio keys, Claude Code login, OpenCode)
-  add-key <rulio_…>   add a key for another account; a running rulio-agent picks it up within 30 s
-  remove-key <…tail>  remove a key from the file by its last 6 characters
-  list-keys           show the keys by their last 6 characters
-  help                show this help
-
-Environment:
-  RULIO_TOKEN              key from rulio: rulio → AI agent → Connection (or use add-key)
-  RULIO_URL                rulio address (default https://api.rulio.net)
-  CLAUDE_BIN               path to claude (default claude)
-  OPENCODE_BIN             path to opencode (default opencode)
-  OPENCODE_API_KEY         provider key for keys with their own model; OpenCode gets it, nothing else reads it
-  OPENROUTER_API_KEY       the same for models from OpenRouter
-  RULIO_AGENT_OPENCODE_KEYS   names of the variables with provider keys (default OPENCODE_API_KEY,OPENROUTER_API_KEY)
-  RULIO_AGENT_FLAT_PROVIDERS  providers billed by subscription, no cost per run (default opencode-go)
-  RULIO_CLIENT_NAME        name shown in rulio (default rulio-agent@<host>)
-  RULIO_AGENT_USE_API_KEY  1 = use ANTHROPIC_API_KEY instead of the subscription
-
-More: https://github.com/netlibrary/rulio-agent`;
 const log = (msg: string) => console.log(`${new Date().toISOString()} ${redactKeys(msg)}`);
 
-const NO_KEYS = "No rulio key: set RULIO_TOKEN or run `rulio-agent add-key rulio_…` (rulio → AI agent → Connection).";
 
 /** Which engine can run? Claude Code alone, OpenCode alone or both; without any there is nothing to do */
 function checkEngines(settings: Settings): void {
@@ -107,10 +83,10 @@ function keyCommand(cmd: string, arg: string | undefined): void {
   }
   if (!arg) throw new Error(cmd === "add-key" ? "Usage: rulio-agent add-key <rulio_…>" : "Usage: rulio-agent remove-key <last 6 characters>");
   if (cmd === "add-key") {
-    console.log(addKey(path, arg) ? `Key ${keyTail(arg)} added. A running rulio-agent picks it up within 30 s.` : `Key ${keyTail(arg)} is already there.`);
+    console.log(addKey(path, arg) ? keyAdded(keyTail(arg)) : `Key ${keyTail(arg)} is already there.`);
     return;
   }
-  console.log(`Key ${keyTail(removeKey(path, arg))} removed. A running rulio-agent stops using it within 30 s.`);
+  console.log(keyRemoved(keyTail(removeKey(path, arg))));
 }
 
 async function main(): Promise<void> {
@@ -155,7 +131,7 @@ async function main(): Promise<void> {
   }
   // Without a key it waits for one: a container that keeps restarting could not take `docker exec … add-key`
   if (!configs.length) log(`${NO_KEYS} Waiting for one.`);
-  log(`rulio-agent running as ${settings.clientName} against ${settings.rulioUrl} with ${configs.length} ${configs.length === 1 ? "key" : "keys"}`);
+  log(startLine(settings.clientName, settings.rulioUrl, configs.length));
   new Agents(settings, deps).start();
   // The loops keep the process alive and handle their own errors
 }

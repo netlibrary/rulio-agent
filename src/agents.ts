@@ -1,5 +1,6 @@
 import type { Config, Settings } from "./config.js";
 import { keyTail } from "./keys.js";
+import { KEY_GONE } from "./texts.js";
 import { isKeyRejected, nextPollDelay, POLL_WAIT_SECONDS, type PollOptions, type PollReply, type RunOrder, type RunResult } from "./rulio.js";
 
 /**
@@ -224,7 +225,7 @@ export class Agents {
       this.deps.finish(cfg, order.id, { status: "error", error }).catch((err: Error) => this.deps.log(`${label} Result not reported: ${err.message}`));
     if (!loop.active) {
       this.deps.log(`${label} Run ${order.id}: not started, key removed`);
-      await notStarted("Not started: the key was removed from rulio-agent");
+      await notStarted(KEY_GONE);
       return;
     }
     // rulio counts the run from the moment it was handed out, waiting included

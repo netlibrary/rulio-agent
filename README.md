@@ -1,12 +1,12 @@
 <!-- When you change this file, update both: README.md (English) and README.de.md (German). -->
 
-# rulio-agent
+# Agentio
 
 🇩🇪 [Deutsch](README.de.md)
 
-Lets your own AI agent (Claude Code or OpenCode) work with [rulio](https://rulio.net)
-**on a schedule**. It reads your account and the market lists, compares ideas,
-creates its own rules **in the paper account** and writes reports. All of this
+Agentio is a small program that lets your own AI agent (Claude Code or OpenCode)
+work with [rulio](https://rulio.net) **on a schedule**. It reads your account and
+the market lists, compares ideas, creates its own rules **in the paper account** and writes reports. All of this
 happens within the limits you set in rulio.
 
 **When** a run is due is decided by rulio. You set it up in the app: before the
@@ -23,7 +23,7 @@ chat or a task. This program only checks in regularly and executes.
   limits.
 - **Web research in report runs:** If the report's workflow allows it (in the
   app: report workflow → "Web research allowed"; on by default for theme
-  research), rulio marks the run with `web`. Only then rulio-agent additionally
+  research), rulio marks the run with `web`. Only then Agentio additionally
   allows Claude Code's `WebSearch` and `WebFetch` — searching the web and
   reading pages. Shell, files and other MCP servers stay off. Because web
   pages can contain planted instructions, **rulio rejects every changing tool
@@ -46,7 +46,7 @@ chat or a task. This program only checks in regularly and executes.
    key (`rulio_…`). It is valid for exactly one account and can be revoked
    there at any time. You set the schedule in the AI agent section.
 2. **[Claude Code](https://code.claude.com)** with your own subscription
-   (Pro/Max) or API key. rulio-agent only starts the unmodified `claude`
+   (Pro/Max) or API key. Agentio only starts the unmodified `claude`
    program. It never reads your login.
 3. **Node.js 20** or newer (for option 2).
 
@@ -112,7 +112,7 @@ docker exec rulio-agent rulio-agent add-key rulio_…
 
 | Command | What it does |
 | --- | --- |
-| `rulio-agent add-key <rulio_…>` | Adds a key to `~/.rulio-agent/keys` (mode `600`). A running rulio-agent picks it up within 30 s. |
+| `rulio-agent add-key <rulio_…>` | Adds a key to `~/.rulio-agent/keys` (mode `600`). A running Agentio picks it up within 30 s. |
 | `rulio-agent remove-key <…last 6 characters>` | Removes a key from the file. A key in `RULIO_TOKEN` stays. |
 | `rulio-agent list-keys` | Shows the keys by their last 6 characters. |
 
@@ -139,7 +139,7 @@ A key in rulio can have its own model. Runs for that key then use
 runs with Claude Code as before, and your Claude subscription stays there.
 
 The container includes OpenCode with a fixed version. Elsewhere install it with
-`npm install -g opencode-ai@1.19.5`. Pass your provider key to rulio-agent:
+`npm install -g opencode-ai@1.19.5`. Pass your provider key to Agentio:
 
 ```bash
 docker run -d … -e OPENCODE_API_KEY=… rulio-agent
@@ -152,7 +152,7 @@ instead. Models are named `provider/model`, so the provider is part of the model
 chosen in rulio. Another provider only needs its key: list the variable in
 `RULIO_AGENT_OPENCODE_KEYS`.
 
-With every poll rulio-agent tells rulio about its setup, so the app can show
+With every poll Agentio tells rulio about its setup, so the app can show
 where it runs and whether the model can be paid for: running in Docker (yes or
 no, from `/.dockerenv`), Claude Code logged in (yes, no, unknown; checked at the
 start and at most every 10 minutes), using `RULIO_AGENT_USE_API_KEY` (yes or no),
@@ -165,7 +165,7 @@ The safeguards are the same as with Claude Code:
 - Its own empty working directory, configuration and data per run, removed
   afterwards. Other configurations are not read, and of the environment only the
   variables needed to start and the provider keys are passed on.
-- rulio-agent enforces the time and step limits itself and ends the process. If
+- Agentio enforces the time and step limits itself and ends the process. If
   the next step has already started at that moment, its tool call may still be
   carried out by rulio.
 
@@ -189,21 +189,21 @@ bills per use, not for providers listed in `RULIO_AGENT_FLAT_PROVIDERS`.
 | `RULIO_CLIENT_NAME` | Name shown in rulio ("agent online") | `rulio-agent@<host>` |
 | `RULIO_AGENT_USE_API_KEY` | `1` = use `ANTHROPIC_API_KEY` instead of the subscription | off |
 
-If `ANTHROPIC_API_KEY` is set, rulio-agent removes it for the runs. That way the
+If `ANTHROPIC_API_KEY` is set, Agentio removes it for the runs. That way the
 agent runs on your subscription and not on API costs. This does not apply if
 `RULIO_AGENT_USE_API_KEY=1` is set.
 
 The agent always waits for the rulio tools before the first step, even when it is
-started from a terminal of the Claude desktop app: rulio-agent removes
+started from a terminal of the Claude desktop app: Agentio removes
 `MCP_CONNECTION_NONBLOCKING` (which the app may pass on) for the runs.
 
 ## How a run works
 
-- **Polling:** rulio-agent calls `POST /api/agent/runner/poll` as a long poll.
+- **Polling:** Agentio calls `POST /api/agent/runner/poll` as a long poll.
   If nothing is due, rulio keeps the request open for up to 25 s and answers
   immediately when a chat message arrives. A chat run therefore starts within
   seconds. On errors it waits a minute.
-- **Run:** When a run is due, rulio-agent starts `claude -p` with a temporary
+- **Run:** When a run is due, Agentio starts `claude -p` with a temporary
   MCP configuration that contains **only** rulio. Only `mcp__rulio__*` is
   allowed (plus subagents in report runs, plus `WebSearch`/`WebFetch` in report
   runs with web research). Time and turn limits come from rulio.

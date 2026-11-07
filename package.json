@@ -1,7 +1,7 @@
 {
   "name": "rulio-agent",
   "version": "0.1.0",
-  "description": "Runs your own AI agent (Claude Code or OpenCode) on a schedule with rulio",
+  "description": "Agentio: runs your own AI agent on a schedule with rulio",
   "keywords": [
     "rulio",
     "claude-code",
