@@ -10,7 +10,10 @@ import type { RunOrder, RunResult } from "./rulio.js";
  * is not the Claude subscription. The order names the model as
  * `provider/model`, so changing the provider needs no code. Safeguards, the
  * same as for Claude Code:
- *  - only the rulio MCP server, all other tools denied, with `--auto` too
+ *  - only the rulio MCP server, all other tools denied, with `--auto` too.
+ *    Report runs with web research (`order.web`) also get OpenCode's two web
+ *    tools, `webfetch` and `websearch`; rulio then refuses every changing call
+ *    for the whole run (webRunMayCall), whatever the model
  *  - an empty working directory and its own config, data and cache directories
  *    per run: OPENCODE_CONFIG_CONTENT is merged with other configurations rather
  *    than replacing them, so none may be reachable
@@ -28,8 +31,18 @@ const KILL_GRACE_MS = 5000;
 /** From the parent, needed to start the program; nothing else is inherited */
 const BASE_ENV = ["PATH", "SYSTEMROOT", "TEMP", "TMP", "LANG", "NODE_EXTRA_CA_CERTS"];
 
-/** The configuration of one run: only rulio, everything else denied */
-export function opencodeConfig(cfg: Pick<Config, "rulioUrl" | "rulioToken">, order: Pick<RunOrder, "model" | "maxTurns">): Record<string, unknown> {
+/** OpenCode's web tools, allowed only in report runs with web research */
+export const WEB_TOOLS = ["webfetch", "websearch"] as const;
+/**
+ * Search service of `websearch`, fixed to Exa (mcp.exa.ai, no key). OpenCode
+ * offers the tool on its own only with its own providers and otherwise picks the
+ * service per session; with these variables it is there for every provider and
+ * always Exa.
+ */
+export const WEB_SEARCH_ENV = { OPENCODE_ENABLE_EXA: "1", OPENCODE_WEBSEARCH_PROVIDER: "exa" } as const;
+
+/** The configuration of one run: only rulio, everything else denied; web research adds the two web tools */
+export function opencodeConfig(cfg: Pick<Config, "rulioUrl" | "rulioToken">, order: Pick<RunOrder, "model" | "maxTurns" | "web">): Record<string, unknown> {
   return {
     model: order.model,
     small_model: order.model,
@@ -38,7 +51,7 @@ export function opencodeConfig(cfg: Pick<Config, "rulioUrl" | "rulioToken">, ord
     snapshot: false,
     plugin: [],
     mcp: { rulio: { type: "remote", url: `${cfg.rulioUrl}/mcp`, headers: { Authorization: `Bearer ${cfg.rulioToken}` }, oauth: false } },
-    permission: { "*": "deny", "rulio_*": "allow" },
+    permission: { "*": "deny", "rulio_*": "allow", ...(order.web === true ? Object.fromEntries(WEB_TOOLS.map((t) => [t, "allow"])) : {}) },
     // A polite limit: a model that follows it still writes its summary. The limit itself is in runOpenCode
     agent: { build: { steps: order.maxTurns } },
   };
@@ -48,10 +61,10 @@ export function opencodeArgs(prompt: string): string[] {
   return ["run", "--format", "json", "--auto", "--pure", prompt];
 }
 
-/** Environment of one run: the base, its own directories, the provider keys named in the settings */
+/** Environment of one run: the base, its own directories, the provider keys named in the settings; for web research the choice of search service */
 export function opencodeEnv(
   cfg: Pick<Config, "rulioUrl" | "rulioToken" | "opencodeKeys">,
-  order: Pick<RunOrder, "model" | "maxTurns">,
+  order: Pick<RunOrder, "model" | "maxTurns" | "web">,
   home: string,
   base: NodeJS.ProcessEnv = process.env,
 ): NodeJS.ProcessEnv {
@@ -68,6 +81,7 @@ export function opencodeEnv(
     XDG_CACHE_HOME: join(home, ".cache"),
     XDG_STATE_HOME: join(home, ".state"),
     OPENCODE_DISABLE_PROJECT_CONFIG: "1",
+    ...(order.web === true ? WEB_SEARCH_ENV : {}),
     OPENCODE_CONFIG_CONTENT: JSON.stringify(opencodeConfig(cfg, order)),
   };
 }
@@ -152,8 +166,6 @@ type SpawnFn = (command: string, args: string[], options: SpawnOptions) => Child
 
 export async function runOpenCode(cfg: Config, order: RunOrder, spawnFn: SpawnFn = spawn): Promise<RunResult> {
   const model = order.model!;
-  // Research runs read the web, and a page must not be able to steer such a run. For OpenCode that is not secured yet
-  if (order.web === true) return { status: "error", model, error: `Web research reports are not available with ${model}. They run with Claude Code.` };
   // Ohne Schlüssel des Anbieters käme nur eine unverständliche Absage von dort
   if (!cfg.opencodeKeys.some((name) => process.env[name])) {
     return { status: "error", model, error: `No provider key in this container for ${model}. Set ${cfg.opencodeKeys.join(" or ") || "RULIO_AGENT_OPENCODE_KEYS"} on rulio-agent and restart it, or choose Claude Code for this key in rulio.` };

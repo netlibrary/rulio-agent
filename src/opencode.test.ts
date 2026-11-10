@@ -149,16 +149,47 @@ test("no key in what goes back to rulio", async () => {
   assert.ok(!JSON.stringify(leaked).includes("rulio_eigener"));
 });
 
-test("web research is rejected with a clear reason, nothing is started", async () => {
-  let started = false;
-  const spy = ((...args: Parameters<typeof spawn>) => {
-    started = true;
-    return spawn(...args);
-  }) as typeof spawn;
+test("web research with an own model is started, not rejected", async () => {
+  let env: NodeJS.ProcessEnv | undefined;
+  const done = fake("done");
+  const spy = ((c: string, a: readonly string[], options: { env?: NodeJS.ProcessEnv }) => {
+    env = options.env;
+    return (done as unknown as (c: string, a: readonly string[], o: object) => ReturnType<typeof spawn>)(c, a, options);
+  }) as unknown as typeof spawn;
   const r = await runOpenCode(cfg, { ...order, web: true }, spy);
-  assert.equal(r.status, "error");
-  assert.match(r.error!, /Web research/);
-  assert.equal(started, false);
+  assert.equal(r.status, "ok");
+  assert.equal(r.summary, "Zusammenfassung");
+  const c = JSON.parse(env!.OPENCODE_CONFIG_CONTENT!) as { permission: Record<string, string> };
+  assert.deepEqual(c.permission, { "*": "deny", "rulio_*": "allow", webfetch: "allow", websearch: "allow" });
+});
+
+test("configuration of a web run: only rulio and the two web tools, everything else denied", () => {
+  const c = opencodeConfig(cfg, { ...order, web: true }) as { permission: Record<string, string>; mcp: Record<string, unknown> };
+  assert.deepEqual(c.permission, { "*": "deny", "rulio_*": "allow", webfetch: "allow", websearch: "allow" });
+  assert.deepEqual(Object.keys(c.mcp), ["rulio"]);
+  const allowed: Record<string, string> = { ...c.permission };
+  for (const tool of ["bash", "edit", "write", "read", "task", "glob", "grep", "list"]) assert.equal(allowed[tool], undefined, tool);
+});
+
+test("configuration without web: as before, no web tool", () => {
+  for (const web of [undefined, false]) {
+    const c = opencodeConfig(cfg, { ...order, web }) as { permission: Record<string, string> };
+    assert.deepEqual(c.permission, { "*": "deny", "rulio_*": "allow" });
+  }
+  const env = opencodeEnv(cfg, order, "/x/home", { PATH: "/bin" });
+  assert.equal(env.OPENCODE_ENABLE_EXA, undefined);
+  assert.equal(env.OPENCODE_WEBSEARCH_PROVIDER, undefined);
+});
+
+test("environment of a web run: still only the base and the provider keys, plus the fixed search service", () => {
+  const base = { PATH: "/bin", OPENCODE_API_KEY: "zen", RULIO_TOKEN: "rulio_anderer", CLAUDE_CODE_OAUTH_TOKEN: "c", EXA_API_KEY: "exa", PARALLEL_API_KEY: "p", OPENCODE_WEBSEARCH_PROVIDER: "parallel" };
+  const env = opencodeEnv(cfg, { ...order, web: true }, "/x/home", base);
+  assert.equal(env.OPENCODE_API_KEY, "zen");
+  assert.equal(env.OPENCODE_ENABLE_EXA, "1");
+  assert.equal(env.OPENCODE_WEBSEARCH_PROVIDER, "exa");
+  for (const name of ["RULIO_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN", "EXA_API_KEY", "PARALLEL_API_KEY"]) assert.equal(env[name], undefined, name);
+  const own = new Set(["HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME", "OPENCODE_DISABLE_PROJECT_CONFIG", "OPENCODE_CONFIG_CONTENT", "OPENCODE_ENABLE_EXA", "OPENCODE_WEBSEARCH_PROVIDER"]);
+  assert.deepEqual(Object.keys(env).filter((k) => !own.has(k)).sort(), ["OPENCODE_API_KEY", "PATH"]);
 });
 
 test("a report with subagents runs without them: no such tool is allowed", () => {

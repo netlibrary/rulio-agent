@@ -161,7 +161,10 @@ or its name.
 
 The safeguards are the same as with Claude Code:
 
-- Only the rulio tools. Shell, files, web and subagents are denied.
+- Only the rulio tools. Shell, files, web and subagents are denied. Report runs
+  with web research also get OpenCode's `webfetch` (reading a page) and
+  `websearch` (searching the web); rulio then refuses every changing call for
+  the whole run, as with Claude Code.
 - Its own empty working directory, configuration and data per run, removed
   afterwards. Other configurations are not read, and of the environment only the
   variables needed to start and the provider keys are passed on.
@@ -169,8 +172,9 @@ The safeguards are the same as with Claude Code:
   the next step has already started at that moment, its tool call may still be
   carried out by rulio.
 
-Report runs with web research are rejected for these models and report runs
-with subagents run without them. Cost per run is only reported where the provider
+`websearch` uses the search service Exa (mcp.exa.ai): no key and no setting
+needed, the search queries go to Exa. Report runs with subagents run without
+subagents. Cost per run is only reported where the provider
 bills per use, not for providers listed in `RULIO_AGENT_FLAT_PROVIDERS`.
 
 ## Settings (environment variables)

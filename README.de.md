@@ -162,6 +162,9 @@ Name.
 Die Schutzregeln sind dieselben wie bei Claude Code:
 
 - Nur die rulio-Werkzeuge. Shell, Dateien, Web und Unteragenten sind gesperrt.
+  Berichtsläufe mit Web-Recherche bekommen zusätzlich `webfetch` (eine Seite
+  lesen) und `websearch` (im Web suchen) von OpenCode; rulio lehnt dann für den
+  ganzen Lauf jeden ändernden Aufruf ab, wie bei Claude Code.
 - Je Lauf ein eigener, leerer Arbeitsordner, eine eigene Konfiguration und eigene
   Daten, danach gelöscht. Andere Konfigurationen werden nicht gelesen, und aus der
   Umgebung gehen nur die zum Start nötigen Variablen und die Anbieter-Schlüssel mit.
@@ -169,8 +172,9 @@ Die Schutzregeln sind dieselben wie bei Claude Code:
   Hat der nächste Schritt in dem Moment schon begonnen, kann rulio seinen
   Werkzeugaufruf noch ausführen.
 
-Berichtsläufe mit Web-Recherche werden für diese Modelle abgelehnt, Berichtsläufe
-mit Unteragenten laufen ohne sie. Kosten je Lauf stehen nur da, wo der Anbieter nach
+`websearch` nutzt den Suchdienst Exa (mcp.exa.ai): ohne Schlüssel und ohne
+Einstellung, die Suchanfragen gehen an Exa. Berichtsläufe mit Unteragenten laufen
+ohne Unteragenten. Kosten je Lauf stehen nur da, wo der Anbieter nach
 Nutzung abrechnet, nicht bei Anbietern aus `RULIO_AGENT_FLAT_PROVIDERS`.
 
 ## Einstellungen (Umgebungsvariablen)
