@@ -5,12 +5,16 @@
 #     -v rulio-agent-keys:/home/agent/.rulio-agent \
 #     -e RULIO_TOKEN=rulio_… \
 #     -e CLAUDE_CODE_OAUTH_TOKEN=…   # create once with `claude setup-token`
-#     -e OPENCODE_API_KEY=…          # only for keys with their own model
+#     -e OPENCODE_API_KEY=…          # only for keys with their own model (or agentio set-provider-key)
 #     rulio-agent
 #
 # More accounts in the same container, no restart needed:
 #
-#   docker exec rulio-agent rulio-agent add-key rulio_…
+#   docker exec rulio-agent agentio add-key rulio_…
+#
+# Set or replace the provider key, no restart needed (asked for hidden):
+#
+#   docker exec -it rulio-agent agentio set-provider-key opencode
 #
 # The Claude login is yours: the token comes from `claude setup-token` on your
 # machine and is only passed on to Claude Code.
@@ -37,7 +41,7 @@ WORKDIR /app
 COPY package.json tsconfig.json ./
 COPY src ./src
 RUN npm install --no-audit --no-fund && npx tsc -p tsconfig.json && npm prune --omit=dev \
-  && chmod +x dist/cli.js && ln -s /app/dist/cli.js /usr/local/bin/rulio-agent \
+  && chmod +x dist/cli.js && ln -s /app/dist/cli.js /usr/local/bin/agentio && ln -s /app/dist/cli.js /usr/local/bin/rulio-agent \
   && install -d -o agent -g agent -m 700 /home/agent/.rulio-agent
 
 # The added keys survive a new container; the volume takes over this owner and mode

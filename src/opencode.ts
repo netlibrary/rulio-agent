@@ -3,6 +3,7 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync }
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Config } from "./config.js";
+import { PROVIDERS, providerLabel, withProviderKeys } from "./providerKeys.js";
 import type { RunOrder, RunResult } from "./rulio.js";
 
 /**
@@ -18,7 +19,9 @@ import type { RunOrder, RunResult } from "./rulio.js";
  *    per run: OPENCODE_CONFIG_CONTENT is merged with other configurations rather
  *    than replacing them, so none may be reachable
  *  - only the environment listed here, so the keys of other accounts and other
- *    services stay out
+ *    services stay out. Provider keys come from `agentio set-provider-key`
+ *    (providerKeys.ts) before the variables of the container, read anew for
+ *    every run
  *  - time limit and step limit, both enforced here. `steps` alone is no limit:
  *    OpenCode only asks the model to stop and keeps offering it the tools
  *
@@ -166,9 +169,16 @@ type SpawnFn = (command: string, args: string[], options: SpawnOptions) => Child
 
 export async function runOpenCode(cfg: Config, order: RunOrder, spawnFn: SpawnFn = spawn): Promise<RunResult> {
   const model = order.model!;
+  // Each run reads the stored provider keys again: a key set with `agentio set-provider-key` counts without a restart
+  const env = withProviderKeys(cfg.opencodeKeys);
   // Ohne Schlüssel des Anbieters käme nur eine unverständliche Absage von dort
-  if (!cfg.opencodeKeys.some((name) => process.env[name])) {
-    return { status: "error", model, error: `No provider key in this container for ${model}. Set ${cfg.opencodeKeys.join(" or ") || "RULIO_AGENT_OPENCODE_KEYS"} on rulio-agent and restart it, or choose Claude Code for this key in rulio.` };
+  if (!cfg.opencodeKeys.some((name) => env[name])) {
+    const provider = PROVIDERS[providerOf(model)] ? providerOf(model) : providerLabel(cfg.opencodeKeys[0] ?? "OPENCODE_API_KEY");
+    return {
+      status: "error",
+      model,
+      error: `No provider key in this container for ${model}. Set ${cfg.opencodeKeys.join(" or ") || "RULIO_AGENT_OPENCODE_KEYS"} with \`agentio set-provider-key ${provider}\` (no restart needed) or as a variable of the container, or choose Claude Code for this key in rulio.`,
+    };
   }
   const root = mkdtempSync(join(tmpdir(), "rulio-agent-"));
   const home = join(root, "home");
@@ -176,7 +186,8 @@ export async function runOpenCode(cfg: Config, order: RunOrder, spawnFn: SpawnFn
   mkdirSync(home);
   mkdirSync(work);
   linkOpencodeDeps(home, cfg.opencodeDeps);
-  const secrets = [cfg.rulioToken, ...cfg.opencodeKeys.map((name) => process.env[name]).filter((v): v is string => !!v)];
+  // Keys of the file and of the container: neither may reach rulio or the log
+  const secrets = [cfg.rulioToken, ...new Set(cfg.opencodeKeys.flatMap((name) => [env[name], process.env[name]]).filter((v): v is string => !!v))];
   const clean = (text: string | null): string | null => (text === null ? null : secrets.reduce((t, s) => t.split(s).join("***"), text));
   const reader = new StreamReader();
   const flat = cfg.flatRateProviders.includes(providerOf(model));
@@ -184,7 +195,7 @@ export async function runOpenCode(cfg: Config, order: RunOrder, spawnFn: SpawnFn
     return await new Promise<RunResult>((resolve) => {
       const child = spawnFn(cfg.opencodeBin, opencodeArgs(order.prompt), {
         cwd: work,
-        env: opencodeEnv(cfg, order, home),
+        env: opencodeEnv(cfg, order, home, env),
         stdio: ["ignore", "pipe", "pipe"],
         detached: process.platform !== "win32",
         windowsHide: true,

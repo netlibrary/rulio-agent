@@ -3,30 +3,38 @@ import { spawnSync } from "node:child_process";
 import { loadSettings, type Config, type Settings } from "./config.js";
 import { Agents, askOnce, type AgentDeps } from "./agents.js";
 import { addKey, allKeys, keysFile, keyTail, redactKeys, removeKey } from "./keys.js";
+import { providerKeySources, providerLabel, providerSecrets, providerVariable, redactSecrets, removeProviderKey, setProviderKey, withProviderKeys } from "./providerKeys.js";
 import { finish, poll } from "./rulio.js";
+import { currentSetup } from "./setup.js";
 import { runEngine } from "./engine.js";
-import { HELP, keyAdded, keyRemoved, NO_KEYS, startLine } from "./texts.js";
+import { HELP, keyAdded, keyRemoved, NO_KEYS, NO_PROVIDER_KEY_GIVEN, providerKeyRemoved, providerKeySet, startLine } from "./texts.js";
 
 /**
- * rulio-agent (in rulio: Agentio) — regularly asks rulio whether a run is due and lets Claude Code
+ * Agentio (command `agentio`, also `rulio-agent`) — regularly asks rulio whether a run is due and lets Claude Code
  * or, for a key with its own model, OpenCode work through it. WHEN a run is due
  * is decided by rulio (schedule in the app); this program only executes.
  *
- *   rulio-agent run                keep running (default)
- *   rulio-agent once               ask once with each key and execute due runs
- *   rulio-agent check              check the setup (rulio keys, Claude Code)
- *   rulio-agent add-key <key>      add a key for another account
- *   rulio-agent remove-key <tail>  remove a key by its last 6 characters
- *   rulio-agent list-keys          show the keys by their last 6 characters
+ *   agentio run                    keep running (default)
+ *   agentio once                   ask once with each key and execute due runs
+ *   agentio check                  check the setup (rulio keys, Claude Code)
+ *   agentio status                 keys, provider keys (set or not) and the Claude login
+ *   agentio add-key <key>          add a key for another account
+ *   agentio remove-key <tail>      remove a key by its last 6 characters
+ *   agentio list-keys              show the keys by their last 6 characters
+ *   agentio set-provider-key <p>   store a provider key (asked for hidden), no restart
+ *   agentio remove-provider-key <p>
  */
-const log = (msg: string) => console.log(`${new Date().toISOString()} ${redactKeys(msg)}`);
+/** Neither a rulio key nor a provider key (file or variable) reaches the log */
+const redact = (msg: string): string => redactSecrets(redactKeys(msg), providerSecrets(loadSettings().opencodeKeys));
+const log = (msg: string) => console.log(`${new Date().toISOString()} ${redact(msg)}`);
 
 
 /** Which engine can run? Claude Code alone, OpenCode alone or both; without any there is nothing to do */
 function checkEngines(settings: Settings): void {
   const open = spawnSync(settings.opencodeBin, ["--version"], { encoding: "utf8" });
   const opencode = !open.error && open.status === 0;
-  const keyed = settings.opencodeKeys.some((name) => !!process.env[name]);
+  const providerEnv = withProviderKeys(settings.opencodeKeys);
+  const keyed = settings.opencodeKeys.some((name) => !!providerEnv[name]);
   if (opencode) log(`OpenCode: ${open.stdout.trim()}${keyed ? "" : " (no provider key: keys with their own model cannot run)"}`);
   try {
     checkClaude(settings);
@@ -81,12 +89,87 @@ function keyCommand(cmd: string, arg: string | undefined): void {
     for (const k of keys) console.log(`${keyTail(k.key)}  ${k.source === "file" ? path : k.source}`);
     return;
   }
-  if (!arg) throw new Error(cmd === "add-key" ? "Usage: rulio-agent add-key <rulio_…>" : "Usage: rulio-agent remove-key <last 6 characters>");
+  if (!arg) throw new Error(cmd === "add-key" ? "Usage: agentio add-key <rulio_…>" : "Usage: agentio remove-key <last 6 characters>");
   if (cmd === "add-key") {
     console.log(addKey(path, arg) ? keyAdded(keyTail(arg)) : `Key ${keyTail(arg)} is already there.`);
     return;
   }
   console.log(keyRemoved(keyTail(removeKey(path, arg))));
+}
+
+/**
+ * The key comes hidden from the terminal, never as an argument (it would stay in the shell history).
+ * Without a terminal it is read from standard input, so `… < file` works.
+ */
+async function readSecret(prompt: string): Promise<string> {
+  const input = process.stdin;
+  if (!input.isTTY) {
+    let text = "";
+    for await (const chunk of input) text += String(chunk);
+    return text.split(/\r?\n/).find((l) => l.trim())?.trim() ?? "";
+  }
+  process.stdout.write(prompt);
+  input.setRawMode(true);
+  input.setEncoding("utf8");
+  input.resume();
+  return new Promise((resolve, reject) => {
+    let value = "";
+    const done = (err?: Error) => {
+      input.setRawMode(false);
+      input.pause();
+      input.off("data", onData);
+      process.stdout.write("\n");
+      if (err) reject(err);
+      else resolve(value.trim());
+    };
+    const onData = (chunk: string) => {
+      for (const ch of chunk) {
+        if (ch === "\r" || ch === "\n") return done();
+        if (ch === "\u0003") return done(new Error("Cancelled, nothing stored."));
+        if (ch === "\u007f" || ch === "\b") {
+          if (value) {
+            value = value.slice(0, -1);
+            process.stdout.write("\b \b");
+          }
+          continue;
+        }
+        if (ch >= " ") {
+          value += ch;
+          process.stdout.write("*");
+        }
+      }
+    };
+    input.on("data", onData);
+  });
+}
+
+async function providerKeyCommand(cmd: string, arg: string | undefined): Promise<void> {
+  const { opencodeKeys } = loadSettings();
+  if (!arg) throw new Error(`Usage: agentio ${cmd} <opencode|openrouter|variable name>`);
+  const variable = providerVariable(arg, opencodeKeys);
+  const label = providerLabel(variable);
+  if (cmd === "remove-provider-key") {
+    console.log(providerKeyRemoved(label, removeProviderKey(variable), !!process.env[variable]));
+    return;
+  }
+  const key = await readSecret(`Key for ${label} (not shown): `);
+  if (!key) throw new Error(NO_PROVIDER_KEY_GIVEN);
+  setProviderKey(variable, key);
+  console.log(providerKeySet(label));
+}
+
+/** What is set, never a key: rulio keys by their last 6 characters, provider keys only as set or not */
+async function status(): Promise<void> {
+  const settings = loadSettings();
+  const keys = allKeys(process.env, keysFile());
+  const sources = providerKeySources(settings.opencodeKeys);
+  const claude = (await currentSetup(settings)).claude;
+  const row = (label: string, text: string) => console.log(`${label.padEnd(13)}${text}`);
+  row("Accounts:", keys.length ? `${keys.length} ${keys.length === 1 ? "key" : "keys"} (${keys.map((k) => keyTail(k.key)).join(", ")})` : "no key");
+  const source = (s: (typeof sources)[number]) => (s.source === "file" ? "set (file)" : s.source === "variable" ? "set (variable)" : "not set");
+  row("Providers:", sources.map((s) => `${providerLabel(s.variable)} ${source(s)}`).join(" · ") || "none");
+  const login = claude === "ok" ? "logged in" : claude === "missing" ? "not logged in or not installed" : "could not check";
+  row("Claude Code:", settings.useApiKey ? (claude === "ok" ? "uses ANTHROPIC_API_KEY" : "ANTHROPIC_API_KEY missing") : login);
 }
 
 async function main(): Promise<void> {
@@ -99,7 +182,17 @@ async function main(): Promise<void> {
     keyCommand(cmd, process.argv[3]);
     return;
   }
-  if (cmd !== "run" && cmd !== "once" && cmd !== "check") throw new Error(`Unknown command "${cmd}" (run, once, check, add-key, remove-key, list-keys, help)`);
+  if (cmd === "set-provider-key" || cmd === "remove-provider-key") {
+    await providerKeyCommand(cmd, process.argv[3]);
+    return;
+  }
+  if (cmd === "status") {
+    await status();
+    return;
+  }
+  if (cmd !== "run" && cmd !== "once" && cmd !== "check") {
+    throw new Error(`Unknown command "${cmd}" (run, once, check, status, add-key, remove-key, list-keys, set-provider-key, remove-provider-key, help)`);
+  }
   const settings = loadSettings();
   const path = keysFile();
   const keys = () => allKeys(process.env, path).map((k) => k.key);
@@ -137,6 +230,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err: Error) => {
-  console.error(redactKeys(err.message));
+  console.error(redact(err.message));
   process.exit(1);
 });

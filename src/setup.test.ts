@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import { poll } from "./rulio.js";
 import { CLAUDE_CHECK_MS, setupProbe } from "./setup.js";
@@ -6,6 +9,18 @@ import type { Config } from "./config.js";
 
 const cfg = { claudeBin: "claude", useApiKey: false, opencodeKeys: ["OPENCODE_API_KEY", "OPENROUTER_API_KEY"] };
 const loggedIn = async () => ({ text: "Logged in", failed: false, notFound: false });
+// Stored provider keys (#945) come from the home directory: an empty one of its own, never the real one
+const testHome = mkdtempSync(join(tmpdir(), "setup-home-"));
+process.env.HOME = testHome;
+process.env.USERPROFILE = testHome;
+
+test("provider key stored with set-provider-key (#945): counts without a variable, read anew at every poll", async () => {
+  const path = join(mkdtempSync(join(tmpdir(), "pk-")), "provider-keys");
+  const probe = setupProbe({ exists: () => false, env: {}, runClaude: loggedIn, providerKeysPath: path });
+  assert.equal((await probe(cfg)).providerKey, false);
+  writeFileSync(path, "OPENROUTER_API_KEY=or-erfunden-123\n");
+  assert.equal((await probe(cfg)).providerKey, true);
+});
 
 test("docker is recognised by /.dockerenv, nothing else", async () => {
   const yes = await setupProbe({ exists: (p) => p === "/.dockerenv", env: {}, runClaude: loggedIn })(cfg);

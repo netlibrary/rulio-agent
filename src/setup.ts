@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import type { Settings } from "./config.js";
+import { providerKeysFile, withProviderKeys } from "./providerKeys.js";
 
 /**
  * What rulio-agent tells rulio about its setup with every poll, so the app can
@@ -36,10 +37,12 @@ export interface SetupDeps {
   env?: NodeJS.ProcessEnv;
   runClaude?: RunClaude;
   now?: () => number;
+  /** File of the provider keys set with `agentio set-provider-key` */
+  providerKeysPath?: string;
 }
 
 /** Without a cached answer it asks once, also for several keys at the same time */
-export function setupProbe({ exists = existsSync, env = process.env, runClaude = runClaudeAuth, now = Date.now }: SetupDeps = {}) {
+export function setupProbe({ exists = existsSync, env = process.env, runClaude = runClaudeAuth, now = Date.now, providerKeysPath }: SetupDeps = {}) {
   let known: { at: number; claude: AgentSetup["claude"] } | null = null;
   let asking: Promise<AgentSetup["claude"]> | null = null;
 
@@ -67,7 +70,11 @@ export function setupProbe({ exists = existsSync, env = process.env, runClaude =
     docker: exists("/.dockerenv"),
     claude: await claude(cfg),
     claudeApiKey: cfg.useApiKey,
-    providerKey: cfg.opencodeKeys.some((name) => !!env[name]),
+    // Stored keys count as well, read anew: a key set without a restart shows at the next poll
+    providerKey: (() => {
+      const all = withProviderKeys(cfg.opencodeKeys, env, providerKeysPath ?? providerKeysFile());
+      return cfg.opencodeKeys.some((name) => !!all[name]);
+    })(),
   });
 }
 

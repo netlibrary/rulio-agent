@@ -38,6 +38,10 @@ const cfg: Config = {
   clientName: "t",
   useApiKey: false,
 };
+// Stored provider keys (#945) come from the home directory: an empty one of its own, never the real one
+const testHome = mkdtempSync(join(tmpdir(), "opencode-home-"));
+process.env.HOME = testHome;
+process.env.USERPROFILE = testHome;
 process.env.OPENCODE_API_KEY = "zen-test";
 const order: RunOrder = { id: "r1", trigger: "manual", prompt: "Los", maxMinutes: 1, maxTurns: 3, model: "opencode/some-model" };
 

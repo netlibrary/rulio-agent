@@ -68,7 +68,7 @@ export function addKey(path: string, key: string): boolean {
 /** Remove the key with these last 6 characters from the file; a key in RULIO_TOKEN stays */
 export function removeKey(path: string, tail: string): string {
   const wanted = tail.replace(/^[….]+/, "").slice(-TAIL);
-  if (wanted.length < TAIL) throw new Error(`Give the last ${TAIL} characters of the key (rulio-agent list-keys).`);
+  if (wanted.length < TAIL) throw new Error(`Give the last ${TAIL} characters of the key (agentio list-keys).`);
   const keys = readFileKeys(path);
   const hits = keys.filter((k) => k.endsWith(wanted));
   if (!hits.length) throw new Error(`No key …${wanted} in ${path}. A key from RULIO_TOKEN can only be changed where the variable is set.`);

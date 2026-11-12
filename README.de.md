@@ -14,6 +14,9 @@ vor Öffnung, alle N Minuten während der Handelszeit, nach Schluss, bei
 Ereignissen oder per Chat bzw. Auftrag. Dieses Programm fragt nur regelmäßig
 nach und führt aus.
 
+Der Befehl heißt `agentio`. Der ältere Name `rulio-agent` startet dasselbe
+Programm, bestehende Skripte laufen also weiter.
+
 ## Was der Agent darf
 
 - **Nur rulio:** Der Agent arbeitet ausschließlich mit den rulio-Werkzeugen
@@ -72,13 +75,13 @@ stündlich, auf deinem Abo.
 ```bash
 claude auth login                                  # einmal, mit deinem Claude-Abo
 npm install -g github:netlibrary/rulio-agent
-RULIO_TOKEN=rulio_… rulio-agent check              # Verbindung prüfen
-RULIO_TOKEN=rulio_… rulio-agent run                # dauerhaft laufen lassen
+RULIO_TOKEN=rulio_… agentio check              # Verbindung prüfen
+RULIO_TOKEN=rulio_… agentio run                # dauerhaft laufen lassen
 ```
 
-Unter Windows (PowerShell): `$env:RULIO_TOKEN="rulio_…"; rulio-agent run`
+Unter Windows (PowerShell): `$env:RULIO_TOKEN="rulio_…"; agentio run`
 
-`rulio-agent once` führt höchstens einen fälligen Lauf aus und endet. Das
+`agentio once` führt höchstens einen fälligen Lauf aus und endet. Das
 eignet sich für einen eigenen Zeitplan, etwa per Cron oder Aufgabenplanung.
 
 ## Weg 3: Auf einem Server (Docker)
@@ -106,14 +109,15 @@ einen weiteren Schlüssel an und trägst ihn im laufenden Container ein. Ein
 Neustart ist nicht nötig:
 
 ```bash
-docker exec rulio-agent rulio-agent add-key rulio_…
+docker exec rulio-agent agentio add-key rulio_…
 ```
 
 | Befehl | Was er tut |
 | --- | --- |
-| `rulio-agent add-key <rulio_…>` | Trägt einen Schlüssel in `~/.rulio-agent/keys` ein (Rechte `600`). Ein laufender Agentio übernimmt ihn innerhalb von 30 s. |
-| `rulio-agent remove-key <…letzte 6 Zeichen>` | Entfernt einen Schlüssel aus der Datei. Ein Schlüssel in `RULIO_TOKEN` bleibt. |
-| `rulio-agent list-keys` | Zeigt die Schlüssel mit ihren letzten 6 Zeichen. |
+| `agentio add-key <rulio_…>` | Trägt einen Schlüssel in `~/.rulio-agent/keys` ein (Rechte `600`). Ein laufender Agentio übernimmt ihn innerhalb von 30 s. |
+| `agentio remove-key <…letzte 6 Zeichen>` | Entfernt einen Schlüssel aus der Datei. Ein Schlüssel in `RULIO_TOKEN` bleibt. |
+| `agentio list-keys` | Zeigt die Schlüssel mit ihren letzten 6 Zeichen. |
+| `agentio status` | Zeigt die Schlüssel mit ihren letzten 6 Zeichen, je Anbieter nur, ob sein Schlüssel gesetzt ist und woher (Datei oder Variable), und die Claude-Anmeldung. Nie einen Schlüssel. |
 
 - **Ein Lauf zur Zeit:** Läufe aus allen Konten warten aufeinander, wer zuerst
   dran ist, zuerst. Solange ein Lauf läuft, meldet sich jedes Konto mindestens
@@ -137,8 +141,31 @@ nutzen dann [OpenCode](https://opencode.ai) statt Claude Code. Ein Schlüssel oh
 Modell läuft wie bisher mit Claude Code, und dein Claude-Abo bleibt dort.
 
 Der Container enthält OpenCode mit fester Version. Sonst installierst du es mit
-`npm install -g opencode-ai@1.19.5`. Den Schlüssel des Anbieters gibst du
-Agentio mit:
+`npm install -g opencode-ai@1.19.5`.
+
+### Schlüssel des Anbieters setzen oder tauschen
+
+```bash
+docker exec -it rulio-agent agentio set-provider-key opencode
+Key for opencode (not shown): ********
+Key for opencode stored. It counts from the next run, no restart needed.
+```
+
+- Der Schlüssel wird verdeckt abgefragt und nie als Argument übergeben, damit er
+  nicht im Verlauf der Shell steht. Ohne Terminal liest der Befehl ihn von der
+  Standardeingabe: `docker exec -i rulio-agent agentio set-provider-key opencode < schluessel.txt`.
+- Anbieter: `opencode` (`OPENCODE_API_KEY`), `openrouter` (`OPENROUTER_API_KEY`).
+  Weitere Variablen aus `RULIO_AGENT_OPENCODE_KEYS` setzt du mit ihrem Namen.
+- Gespeichert wird im Volume neben den rulio-Schlüsseln
+  (`~/.rulio-agent/provider-keys`, Rechte `600`). Er geht einer Variablen des
+  Containers vor. Jeder Lauf liest ihn neu, ein neuer Schlüssel braucht also
+  keinen Neustart.
+- `agentio remove-provider-key opencode` entfernt ihn. Danach gilt wieder die
+  Variable des Containers, falls es eine gibt.
+- `agentio status` zeigt, ob ein Schlüssel gesetzt ist, nie den Schlüssel.
+
+Rückfall: den Schlüssel als Variable des Containers mitgeben. Ihn zu tauschen
+heißt dann, den Container neu anzulegen.
 
 ```bash
 docker run -d … -e OPENCODE_API_KEY=… rulio-agent
@@ -156,7 +183,7 @@ zeigen kann, wo er läuft und ob das Modell bezahlt werden kann: läuft in Docke
 (ja oder nein, über `/.dockerenv`), Claude Code angemeldet (ja, nein, unbekannt;
 geprüft beim Start und höchstens alle 10 Minuten), nutzt
 `RULIO_AGENT_USE_API_KEY` (ja oder nein), Schlüssel des Anbieters vorhanden (ja
-oder nein). Nie gesendet werden ein Schlüssel, der Wert einer Variablen oder ihr
+oder nein, gespeichert oder als Variable). Nie gesendet werden ein Schlüssel, der Wert einer Variablen oder ihr
 Name.
 
 Die Schutzregeln sind dieselben wie bei Claude Code:
@@ -186,7 +213,7 @@ Nutzung abrechnet, nicht bei Anbietern aus `RULIO_AGENT_FLAT_PROVIDERS`.
 | `CLAUDE_BIN` | Pfad zu `claude` | `claude` |
 | `OPENCODE_BIN` | Pfad zu `opencode` | `opencode` |
 | `RULIO_AGENT_OPENCODE_DEPS` | Ordner mit den Paketen, die OpenCode sonst in jedem Lauf installiert; im Container enthalten. Ohne ihn braucht ein Lauf etwa 190 MB im Temp-Ordner | `/opt/opencode-deps` |
-| `OPENCODE_API_KEY` | Schlüssel des Anbieters für Schlüssel mit eigenem Modell | — |
+| `OPENCODE_API_KEY` | Schlüssel des Anbieters für Schlüssel mit eigenem Modell; ein mit `set-provider-key` gespeicherter geht vor | — |
 | `OPENROUTER_API_KEY` | Dasselbe für Modelle von OpenRouter | — |
 | `RULIO_AGENT_OPENCODE_KEYS` | Namen der Variablen mit Anbieter-Schlüsseln | `OPENCODE_API_KEY,OPENROUTER_API_KEY` |
 | `RULIO_AGENT_FLAT_PROVIDERS` | Anbieter mit Abo, keine Kosten je Lauf | `opencode-go` |

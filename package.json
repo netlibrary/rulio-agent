@@ -19,6 +19,7 @@
   "homepage": "https://rulio.net",
   "type": "module",
   "bin": {
+    "agentio": "dist/cli.js",
     "rulio-agent": "dist/cli.js"
   },
   "files": [

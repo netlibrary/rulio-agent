@@ -1,13 +1,14 @@
 /**
- * What the program says about itself. In rulio and here it is called Agentio; the
- * repository, the commands, the Docker image, the keys folder and the client id stay
- * rulio-agent.
+ * What the program says about itself. In rulio and here it is called Agentio, the
+ * command is `agentio` (#945); `rulio-agent` stays as a second name for the same program,
+ * so existing scripts keep working. The repository, the Docker image, the keys folder
+ * and the client id stay rulio-agent.
  */
 export const NAME = "Agentio";
 
 export const HELP = `${NAME} – runs your own AI agent on a schedule with rulio
 
-Usage: rulio-agent [command]
+Usage: agentio [command]   (rulio-agent works the same)
 
 Commands:
   run                 keep running and execute due runs, one at a time (default)
@@ -16,6 +17,13 @@ Commands:
   add-key <rulio_…>   add a key for another account; a running ${NAME} picks it up within 30 s
   remove-key <…tail>  remove a key from the file by its last 6 characters
   list-keys           show the keys by their last 6 characters
+  set-provider-key <provider>
+                      store the key for opencode, openrouter or another variable of
+                      RULIO_AGENT_OPENCODE_KEYS; asked for hidden (or read from standard
+                      input), counts from the next run without a restart
+  remove-provider-key <provider>
+                      remove a stored provider key; a variable of the container stays
+  status              show keys, provider keys (set or not, never the key) and the Claude login
   help                show this help
 
 Environment:
@@ -23,7 +31,8 @@ Environment:
   RULIO_URL                rulio address (default https://api.rulio.net)
   CLAUDE_BIN               path to claude (default claude)
   OPENCODE_BIN             path to opencode (default opencode)
-  OPENCODE_API_KEY         provider key for keys with their own model; OpenCode gets it, nothing else reads it
+  OPENCODE_API_KEY         provider key for keys with their own model, if none is stored with set-provider-key;
+                           OpenCode gets it, nothing else reads it
   OPENROUTER_API_KEY       the same for models from OpenRouter
   RULIO_AGENT_OPENCODE_KEYS   names of the variables with provider keys (default OPENCODE_API_KEY,OPENROUTER_API_KEY)
   RULIO_AGENT_FLAT_PROVIDERS  providers billed by subscription, no cost per run (default opencode-go)
@@ -32,11 +41,16 @@ Environment:
 
 More: https://github.com/netlibrary/rulio-agent`;
 
-export const NO_KEYS = "No rulio key: set RULIO_TOKEN or run `rulio-agent add-key rulio_…` (rulio → AI agent → Connection).";
+export const NO_KEYS = "No rulio key: set RULIO_TOKEN or run `agentio add-key rulio_…` (rulio → AI agent → Connection).";
 
-/** Start message of `rulio-agent run` */
+/** Start message of `agentio run` */
 export const startLine = (clientName: string, rulioUrl: string, keys: number): string =>
   `${NAME} running as ${clientName} against ${rulioUrl} with ${keys} ${keys === 1 ? "key" : "keys"}`;
+
+export const NO_PROVIDER_KEY_GIVEN = "No key given, nothing stored.";
+export const providerKeySet = (provider: string): string => `Key for ${provider} stored. It counts from the next run, no restart needed.`;
+export const providerKeyRemoved = (provider: string, removed: boolean, variable: boolean): string =>
+  `${removed ? `Stored key for ${provider} removed.` : `No stored key for ${provider}.`}${variable ? " The variable of the container still counts." : ""}`;
 
 export const keyAdded = (tail: string): string => `Key ${tail} added. A running ${NAME} picks it up within 30 s.`;
 export const keyRemoved = (tail: string): string => `Key ${tail} removed. A running ${NAME} stops using it within 30 s.`;
