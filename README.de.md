@@ -90,15 +90,49 @@ Das Image baust du selbst aus diesem Repo. Dabei lädt der Build Claude Code
 aus npm. Ein fertiges Image mit Claude Code gibt es nicht zum Herunterladen:
 Claude Code gehört Anthropic und wird nicht von uns weiterverteilt.
 
+### Mit dem Skript (einrichten, aktualisieren, neu starten)
+
 ```bash
 claude setup-token        # auf deinem Rechner: erzeugt ein Token für Skripte
+curl -fsSLo ~/agentio.sh https://raw.githubusercontent.com/netlibrary/rulio-agent/main/scripts/agentio.sh && chmod +x ~/agentio.sh
+~/agentio.sh              # einrichten bzw. aktualisieren
+```
+
+- Das Skript legt den Container immer gleich an: Name `agentio`,
+  `--restart unless-stopped`, das benannte Volume `agentio-keys` für die
+  Schlüssel, die Variablen aus `~/agentio.env` (Rechte `600`).
+- Beim ersten Aufruf legt es `~/agentio.env` mit Platzhaltern an. Trag deinen
+  rulio-Schlüssel und das Claude-Token ein und ruf das Skript noch einmal auf.
+- **Aktualisieren** heißt: das Skript erneut ausführen. Es holt das Image,
+  entfernt den alten Container und startet einen neuen mit denselben Angaben.
+  Volume und Datei bleiben.
+- **Übernahme einer älteren Installation:** Läuft ein Container `rulio-agent`
+  (oder `agentio`) ohne das benannte Volume, übernimmt das Skript einmalig
+  dessen Variablen nach `~/agentio.env` (ohne sie anzuzeigen) und kopiert die
+  Schlüsseldateien nach `agentio-keys`, auch aus einem namenlosen Volume. Erst
+  danach entfernt es den alten Container. Es meldet, wie viele
+  Konten-Schlüssel übernommen wurden.
+- Startet der neue Container nicht oder meldet er keine Schlüssel, läuft der
+  alte wieder und nichts wird gelöscht. Das Skript löscht nie ein Volume und
+  gibt nie einen Schlüssel aus.
+- Am Ende zeigt es `agentio status`.
+- Es nutzt das Image `ghcr.io/netlibrary/rulio-agent:latest`. Mit einem selbst
+  gebauten Image: `AGENTIO_IMAGE=rulio-agent AGENTIO_PULL=0 ~/agentio.sh`.
+
+### Von Hand (für Fortgeschrittene)
+
+```bash
 docker build -t rulio-agent https://github.com/netlibrary/rulio-agent.git
-docker run -d --restart unless-stopped --name rulio-agent \
-  -v rulio-agent-keys:/home/agent/.rulio-agent \
+docker run -d --restart unless-stopped --name agentio \
+  -v agentio-keys:/home/agent/.rulio-agent \
   -e RULIO_TOKEN=rulio_… \
   -e CLAUDE_CODE_OAUTH_TOKEN=… \
   rulio-agent
 ```
+
+Das benannte Volume (`-v agentio-keys:…`) darf nicht wegfallen. Ohne es legt
+Docker ein namenloses Volume an, und die eingetragenen Schlüssel sind beim
+Neuanlegen des Containers kaum wiederzufinden.
 
 Fragt der Agent länger als 10 Minuten nicht nach, meldet rulio ihn als offline.
 
@@ -109,7 +143,7 @@ einen weiteren Schlüssel an und trägst ihn im laufenden Container ein. Ein
 Neustart ist nicht nötig:
 
 ```bash
-docker exec rulio-agent agentio add-key rulio_…
+docker exec agentio agentio add-key rulio_…
 ```
 
 | Befehl | Was er tut |
@@ -146,14 +180,14 @@ Der Container enthält OpenCode mit fester Version. Sonst installierst du es mit
 ### Schlüssel des Anbieters setzen oder tauschen
 
 ```bash
-docker exec -it rulio-agent agentio set-provider-key opencode
+docker exec -it agentio agentio set-provider-key opencode
 Key for opencode (not shown): ********
 Key for opencode stored. It counts from the next run, no restart needed.
 ```
 
 - Der Schlüssel wird verdeckt abgefragt und nie als Argument übergeben, damit er
   nicht im Verlauf der Shell steht. Ohne Terminal liest der Befehl ihn von der
-  Standardeingabe: `docker exec -i rulio-agent agentio set-provider-key opencode < schluessel.txt`.
+  Standardeingabe: `docker exec -i agentio agentio set-provider-key opencode < schluessel.txt`.
 - Anbieter: `opencode` (`OPENCODE_API_KEY`), `openrouter` (`OPENROUTER_API_KEY`).
   Weitere Variablen aus `RULIO_AGENT_OPENCODE_KEYS` setzt du mit ihrem Namen.
 - Gespeichert wird im Volume neben den rulio-Schlüsseln
