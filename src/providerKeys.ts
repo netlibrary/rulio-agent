@@ -1,6 +1,7 @@
 import { chmodSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { isMissing } from "./keys.js";
 
 /**
  * Provider keys for keys with their own model (OPENCODE_API_KEY, OPENROUTER_API_KEY, …),
@@ -47,7 +48,7 @@ export function readProviderKeys(path: string = providerKeysFile()): Record<stri
   try {
     text = readFileSync(path, "utf8");
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return {};
+    if (isMissing(err)) return {};
     throw err;
   }
   tighten(path);

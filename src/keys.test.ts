@@ -5,7 +5,7 @@ import { chmodSync, existsSync, mkdtempSync, readFileSync, statSync, writeFileSy
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { addKey, allKeys, isRulioKey, keyTail, readFileKeys, redactKeys, removeKey } from "./keys.js";
+import { addKey, allKeys, isMissing, isRulioKey, keyTail, readFileKeys, redactKeys, removeKey } from "./keys.js";
 
 const KEY_A = "rulio_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaAAAAAA";
 const KEY_B = "rulio_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbBBBBBB";
@@ -85,6 +85,15 @@ test("file modes: 600 from the start, a loose file gets tightened", posixOnly, (
   assert.equal(statSync(path).mode & 0o777, 0o600);
   removeKey(path, "AAAAAA");
   assert.equal(statSync(path).mode & 0o777, 0o600);
+});
+
+test("a path below a file counts as missing, on Linux (ENOTDIR) and Windows (ENOENT); other errors stay", () => {
+  const file = join(mkdtempSync(join(tmpdir(), "rulio-keys-")), "keys");
+  writeFileSync(file, "x\n");
+  assert.deepEqual(readFileKeys(join(file, "below")), []);
+  assert.equal(isMissing(Object.assign(new Error("x"), { code: "ENOTDIR" })), true);
+  assert.equal(isMissing(Object.assign(new Error("x"), { code: "ENOENT" })), true);
+  assert.equal(isMissing(Object.assign(new Error("x"), { code: "EACCES" })), false);
 });
 
 test("whole keys never get through: the tail stays, the rest goes", () => {

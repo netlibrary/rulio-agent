@@ -22,11 +22,17 @@ export const redactKeys = (text: string): string => text.replace(ANY_KEY, keyTai
 
 export const keysFile = (): string => join(homedir(), ".rulio-agent", "keys");
 
+/**
+ * A path that is not there counts as an empty file: missing (ENOENT), or a parent that is a file
+ * (ENOTDIR — on Linux; Windows reports ENOENT for the same path)
+ */
+export const isMissing = (err: unknown): boolean => ["ENOENT", "ENOTDIR"].includes(String((err as NodeJS.ErrnoException).code));
+
 function readLines(path: string): string[] {
   try {
     return readFileSync(path, "utf8").split(/\r?\n/);
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
+    if (isMissing(err)) return [];
     throw err;
   }
 }
